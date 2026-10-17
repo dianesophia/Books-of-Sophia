@@ -9,6 +9,10 @@ import ResetPassword from "./features/auth/pages/resetpassword";
 import Home from "./features/home/pages/home";
 import Library from "./features/library/pages/library"; 
 import Journal from "./features/journal/pages/journal";
+import Garden from "./features/garden/pages/garden";
+import Achievements from "./features/achievements/pages/achievements";
+import Games from "./features/games/pages/games";
+import Profile from "./features/profile/pages/profile";
 
 function App() {
   return (
@@ -23,6 +27,10 @@ function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/library" element={<Library />} />
         <Route path="/journal" element={<Journal />} />
+        <Route path="/garden" element={<Garden />} />
+        <Route path="/achievements" element={<Achievements />} />
+        <Route path="/games" element={<Games />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
 
     </Routes>

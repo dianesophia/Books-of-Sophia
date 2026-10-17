@@ -4,7 +4,7 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import AppSidebar from "./AppSidebar";
+import AppSidebar from "./appSidebar";
 
 export default function AppLayout() {
   return (
