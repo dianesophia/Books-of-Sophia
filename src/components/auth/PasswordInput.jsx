@@ -13,16 +13,17 @@ export default function PasswordInput({
 
   return (
     <div className="space-y-2">
-      <label
+      {/* <label
         htmlFor={id}
         className="block text-sm font-medium text-[#62574c]"
       >
-        {label}
-      </label>
+       // {label}
+      </label> */}
 
       <div className="relative">
         <input
           id={id}
+          placeholder={label}
           type={visible ? "text" : "password"}
           value={value}
           onChange={onChange}
