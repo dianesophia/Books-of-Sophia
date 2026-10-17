@@ -1,10 +1,14 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import AppLayout from "./components/layout/appLayout";
 
 import Login from "./features/auth/pages/login";
 import Signup from "./features/auth/pages/signup";
 import ForgotPassword from "./features/auth/pages/forgotpassword";
 import ResetPassword from "./features/auth/pages/resetpassword";
+
 import Home from "./features/home/pages/home";
+import Library from "./features/library/pages/library"; 
+import Journal from "./features/journal/pages/journal";
 
 function App() {
   return (
@@ -14,7 +18,13 @@ function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/home" element={<Home />} />
+      
+      <Route element={<AppLayout />}>
+        <Route path="/home" element={<Home />} />
+        <Route path="/library" element={<Library />} />
+        <Route path="/journal" element={<Journal />} />
+      </Route>
+
     </Routes>
   );
 }
