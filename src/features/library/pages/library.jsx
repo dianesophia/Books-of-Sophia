@@ -111,9 +111,19 @@ async function fetchGutendexBooks(query) {
   });
 }
 
-const SERIF = '"Fraunces", "Playfair Display", Georgia, serif';
+/*
+  Look and feel
+  paper  #faf3e6   page background
+  ink    #2b3a30   text (a deep green-black instead of grey)
+  pine   #4f6a4c   buttons and active states
+  oak    #b98a5e   the little wooden ledge under each cover
+  muted  #7a705a   secondary text
+*/
+const SERIF = '"Fraunces", Georgia, "Times New Roman", serif';
 const SANS =
-  'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  '"Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+const FONTS = `@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap");`;
 
 // Your saved books are kept in this browser.
 const SHELF_KEY = "my-library-shelf";
@@ -147,42 +157,56 @@ function scrollToRef(ref) {
 
 function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
   return (
-    <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#e3d7b8] bg-[#fffdf7] shadow-sm">
-      <div className="flex h-56 items-center justify-center bg-[#efe6cf] p-3 sm:h-64">
-        {book.cover ? (
-          <img
-            src={book.cover}
-            alt={`Cover of ${book.title}`}
-            loading="lazy"
-            className="h-full max-w-full object-contain"
-          />
-        ) : (
-          <div className="px-4 text-center text-[#8a7f66]">
-            <span className="text-4xl" aria-hidden="true">
-              📖
-            </span>
-            <p className="mt-2 text-sm">No cover available</p>
-          </div>
-        )}
+    <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-[#fffaf0] shadow-[0_1px_2px_rgba(80,60,30,0.08),0_8px_24px_-12px_rgba(80,60,30,0.25)] ring-1 ring-[#e6d9bb]/70">
+      {/* The cover stands on a small wooden ledge */}
+      <div className="flex h-60 flex-col bg-gradient-to-b from-[#f3e8cc] to-[#ead9b4]">
+        <div className="flex min-h-0 flex-1 items-end justify-center px-6 pt-5">
+          {book.cover ? (
+            <img
+              src={book.cover}
+              alt={`Cover of ${book.title}`}
+              loading="lazy"
+              className="max-h-full max-w-full rounded-[3px] object-contain shadow-[3px_5px_12px_rgba(60,40,20,0.4)]"
+            />
+          ) : (
+            <div
+              className="flex h-40 w-28 flex-col justify-between rounded-[3px] bg-[#4f6a4c] p-3 text-[#faf3e6] shadow-[3px_5px_12px_rgba(60,40,20,0.4)]"
+              role="img"
+              aria-label={`No cover available for ${book.title}`}
+            >
+              <span
+                className="line-clamp-4 text-sm leading-snug"
+                style={{ fontFamily: SERIF }}
+              >
+                {book.title}
+              </span>
+              <span className="h-px w-8 bg-[#faf3e6]/50" aria-hidden="true" />
+            </div>
+          )}
+        </div>
+        <div
+          className="h-2 shrink-0 bg-gradient-to-b from-[#c79a6b] to-[#a37649]"
+          aria-hidden="true"
+        />
       </div>
 
       <div className="flex flex-1 flex-col p-4">
-        <span className="mb-2 text-xs font-medium text-[#5f7a62]">
+        <span className="text-xs font-medium text-[#5f7a62]">
           {book.provider}
         </span>
 
         <h3
-          className="line-clamp-2 font-semibold leading-snug"
+          className="mt-1 line-clamp-2 text-lg font-medium leading-snug text-[#2b3a30]"
           style={{ fontFamily: SERIF }}
         >
           {book.title}
         </h3>
 
-        <p className="mt-2 line-clamp-2 text-sm text-[#7a705a]">
+        <p className="mt-1 line-clamp-1 text-sm text-[#7a705a]">
           {book.authors.join(", ")}
         </p>
 
-        <p className="mt-3 line-clamp-3 text-sm text-[#5d5646]">
+        <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-[#5d5646]">
           {book.description.replace(/<[^>]*>/g, "")}
         </p>
 
@@ -192,7 +216,12 @@ function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
               value={shelfStatus ?? ""}
               onChange={(event) => onSetStatus(event.target.value)}
               aria-label={`Shelf for ${book.title}`}
-              className="min-w-0 flex-1 rounded-lg border border-[#d8cdb2] bg-white px-2 py-2 text-sm text-[#3b3a2f] focus:border-[#6b8268] focus:outline-none focus:ring-2 focus:ring-[#6b8268]/25"
+              className={
+                "min-w-0 flex-1 rounded-lg border px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4f6a4c]/30 " +
+                (shelfStatus
+                  ? "border-[#bccbb4] bg-[#eef3e8] font-medium text-[#3f5a3d]"
+                  : "border-[#dccfae] bg-white text-[#3b3a2f]")
+              }
             >
               {!shelfStatus && <option value="">+ Add to shelf</option>}
               {STATUSES.map((status) => (
@@ -218,7 +247,7 @@ function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
               href={book.readUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-lg bg-[#6b8268] px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#5a7057]"
+              className="block rounded-lg bg-[#4f6a4c] px-3 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-[#3f5a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fffaf0]"
             >
               {book.provider === "Google Books"
                 ? book.fullText
@@ -227,13 +256,30 @@ function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
                 : "Read Free Ebook"}
             </a>
           ) : (
-            <p className="rounded-lg bg-[#efe6cf] px-3 py-3 text-center text-sm text-[#8a7f66]">
+            <p className="rounded-lg bg-[#f1e8d0] px-3 py-2.5 text-center text-sm text-[#8a7f66]">
               No reading link available
             </p>
           )}
         </div>
       </div>
     </article>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div
+      className="overflow-hidden rounded-2xl bg-[#fffaf0] ring-1 ring-[#e6d9bb]/70 motion-safe:animate-pulse"
+      aria-hidden="true"
+    >
+      <div className="h-60 bg-[#efe3c4]" />
+      <div className="space-y-3 p-4">
+        <div className="h-3 w-1/3 rounded bg-[#eadfc4]" />
+        <div className="h-5 w-4/5 rounded bg-[#eadfc4]" />
+        <div className="h-3 w-1/2 rounded bg-[#eadfc4]" />
+        <div className="h-10 rounded-lg bg-[#eadfc4]" />
+      </div>
+    </div>
   );
 }
 
@@ -268,6 +314,14 @@ export default function Library() {
     () => (tab === "all" ? shelf : shelf.filter((book) => book.status === tab)),
     [shelf, tab]
   );
+
+  const counts = useMemo(() => {
+    const result = { all: shelf.length, want: 0, reading: 0, finished: 0 };
+    shelf.forEach((book) => {
+      if (result[book.status] !== undefined) result[book.status] += 1;
+    });
+    return result;
+  }, [shelf]);
 
   function setBookStatus(book, status) {
     if (!status) return;
@@ -361,25 +415,36 @@ export default function Library() {
 
   return (
     <main
-      className="min-h-screen bg-[#f5ecd7] text-[#3b3a2f]"
-      style={{ fontFamily: SANS }}
+      className="min-h-screen text-[#2b3a30]"
+      style={{
+        fontFamily: SANS,
+        background:
+          "radial-gradient(ellipse 80% 40% at 50% 0%, #fffaf0 0%, #faf3e6 70%)",
+      }}
     >
-      <div className="mx-auto max-w-5xl">
-        <div className="px-4 pt-6 sm:px-6">
-        {/* Title and buttons */}
-        <header className="mb-5 flex items-center justify-between gap-3">
-          <h1
-            className="text-3xl font-medium tracking-tight sm:text-4xl"
-            style={{ fontFamily: SERIF }}
-          >
-            My Library
-          </h1>
+      <style>{FONTS}</style>
 
-          <div className="flex items-center gap-2">
+      <div className="w-full px-4 pb-14 pt-8 sm:px-8 sm:pt-12 lg:px-12">
+        {/* Title and buttons */}
+        <header className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1
+              className="text-4xl font-medium tracking-tight sm:text-5xl"
+              style={{ fontFamily: SERIF }}
+            >
+              My Library
+            </h1>
+            <p className="mt-2 max-w-md text-[#7a705a]">
+              Search Google Books and Project Gutenberg, then save what you
+              want to read.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
             <button
               type="button"
               onClick={() => searchInput.current?.focus()}
-              className="rounded-lg bg-[#6b8268] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5a7057] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6b8268]/50"
+              className="rounded-full bg-[#4f6a4c] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#3f5a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf3e6]"
             >
               + Add Book
             </button>
@@ -389,7 +454,7 @@ export default function Library() {
               onClick={clearSearch}
               aria-label="Clear search and results"
               title="Clear search and results"
-              className="rounded-lg border border-[#d8cdb2] bg-white/60 p-2 text-[#6b6450] transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6b8268]/50"
+              className="rounded-full border border-[#dccfae] bg-white/60 p-2.5 text-[#6b6450] transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50"
             >
               <svg
                 width="18"
@@ -412,16 +477,16 @@ export default function Library() {
         </header>
 
         {/* Search */}
-        <form onSubmit={handleSearch} className="relative mb-5">
+        <form onSubmit={handleSearch} className="relative mb-6">
           <svg
-            width="18"
-            height="18"
+            width="20"
+            height="20"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#6b6450]"
+            className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[#7a705a]"
             aria-hidden="true"
           >
             <circle cx="11" cy="11" r="7" />
@@ -435,20 +500,23 @@ export default function Library() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search books, authors, genres..."
             aria-label="Search books by title or author"
-            className="w-full rounded-xl border border-[#d8cdb2] bg-white/60 py-3 pl-11 pr-28 text-[#3b3a2f] placeholder-[#8a7f66] shadow-sm outline-none transition focus:border-[#6b8268] focus:bg-white focus:ring-2 focus:ring-[#6b8268]/25"
+            className="w-full rounded-full border border-[#dccfae] bg-white/80 py-4 pl-12 pr-32 text-[#2b3a30] placeholder-[#8a7f66] shadow-[0_8px_24px_-14px_rgba(80,60,30,0.35)] outline-none transition focus:border-[#4f6a4c] focus:bg-white focus:ring-4 focus:ring-[#4f6a4c]/15"
           />
 
           <button
             type="submit"
             disabled={loading || !query.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-4 py-1.5 text-sm font-semibold text-[#4f6a4c] transition hover:bg-[#e3ecd9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6b8268]/50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-[#4f6a4c] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#3f5a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[#cdd6c6] disabled:text-white/80"
           >
             {loading ? "Searching..." : "Search"}
           </button>
         </form>
 
         {/* Tabs */}
-        <nav aria-label="Shelf filter" className="mb-6 flex flex-wrap gap-2">
+        <nav
+          aria-label="Shelf filter"
+          className="mb-10 inline-flex max-w-full flex-wrap gap-1 rounded-full bg-[#efe4c9]/70 p-1"
+        >
           {TABS.map((item) => {
             const active = tab === item.id;
             return (
@@ -458,38 +526,38 @@ export default function Library() {
                 onClick={() => chooseTab(item.id)}
                 aria-pressed={active}
                 className={
-                  "rounded-full px-4 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6b8268]/50 " +
+                  "flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50 " +
                   (active
-                    ? "bg-[#6b8268] text-white shadow-sm"
-                    : "text-[#4a4638] hover:bg-white/60")
+                    ? "bg-white text-[#2b3a30] shadow-sm"
+                    : "text-[#6b6450] hover:text-[#2b3a30]")
                 }
               >
                 {item.label}
+                <span
+                  className={
+                    "rounded-full px-1.5 text-xs " +
+                    (active
+                      ? "bg-[#4f6a4c] text-white"
+                      : "bg-[#e3d6b4] text-[#6b6450]")
+                  }
+                >
+                  {counts[item.id]}
+                </span>
               </button>
             );
           })}
         </nav>
-        </div>
 
-        {/* Your bookshelves picture, always shown whole, edge to edge with no padding */}
-        <img
-          src={Bookshelves}
-          alt="Three wooden bookshelves filled with books, with a cat, a ladder and potted plants"
-          draggable={false}
-          className="block h-auto w-full select-none mix-blend-multiply"
-        />
-
-        <div className="px-4 pb-10 sm:px-6">
-        {/* Search results appear below the shelves */}
+        {/* Search results */}
         {searched && (
           <section
             ref={resultsRef}
             aria-live="polite"
-            className="mt-12 scroll-mt-6"
+            className="mb-14 scroll-mt-6"
           >
-            <div className="mb-5 flex items-baseline justify-between gap-3">
+            <div className="mb-6 flex items-baseline justify-between gap-3">
               <h2
-                className="text-2xl font-medium"
+                className="text-2xl font-medium sm:text-3xl"
                 style={{ fontFamily: SERIF }}
               >
                 Search results
@@ -502,22 +570,24 @@ export default function Library() {
             </div>
 
             {loading && (
-              <div className="py-16 text-center text-[#6b6450]">
-                Searching both book collections...
+              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <SkeletonCard key={index} />
+                ))}
               </div>
             )}
 
             {!loading && error && (
               <div
                 role="status"
-                className="mb-5 rounded-2xl border border-[#e3c98f] bg-[#fbf1d6] p-5 text-[#6b5320]"
+                className="mb-6 rounded-2xl border border-[#e3c98f] bg-[#fbf1d6] p-5 text-[#6b5320]"
               >
                 {error}
               </div>
             )}
 
             {!loading && books.length > 0 && (
-              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {books.map((book) => (
                   <BookCard
                     key={book.id}
@@ -532,12 +602,12 @@ export default function Library() {
           </section>
         )}
 
-        {/* Your saved books, filtered by the tab you picked */}
+        {/* Your saved books, with the bookshelves picture as the background */}
         {showShelfSection && (
-          <section ref={shelfRef} className="mt-12 scroll-mt-6">
-            <div className="mb-5 flex items-baseline justify-between gap-3">
+          <section ref={shelfRef} className="scroll-mt-6">
+            <div className="mb-6 flex items-baseline justify-between gap-3">
               <h2
-                className="text-2xl font-medium"
+                className="text-2xl font-medium sm:text-3xl"
                 style={{ fontFamily: SERIF }}
               >
                 {tab === "all" ? "On my shelf" : activeTabLabel}
@@ -550,31 +620,40 @@ export default function Library() {
               )}
             </div>
 
-            {visibleShelf.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-[#cdbf9b] bg-white/50 px-6 py-10 text-center text-[#7a705a]">
-                Nothing in {activeTabLabel} yet. Search for a book and choose
-                “Add to shelf” to save it here.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-                {visibleShelf.map((book) => (
-                  <BookCard
-                    key={book.id}
-                    book={book}
-                    shelfStatus={book.status}
-                    onSetStatus={(status) => setBookStatus(book, status)}
-                    onRemove={() => removeBook(book.id)}
-                  />
-                ))}
-              </div>
-            )}
+            <div
+              role="img"
+              aria-label="Wooden bookshelves"
+              className="rounded-3xl bg-cover bg-center p-4 shadow-[inset_0_0_0_1px_rgba(120,85,50,0.25),0_20px_40px_-24px_rgba(80,60,30,0.5)] sm:p-6"
+              style={{
+                backgroundImage: `url(${Bookshelves})`,
+                minHeight: "24rem",
+              }}
+            >
+              {visibleShelf.length === 0 ? (
+                <p className="mx-auto max-w-md rounded-2xl bg-[#faf3e6]/95 px-6 py-10 text-center text-[#6b6450] shadow-sm">
+                  Nothing in {activeTabLabel} yet. Search for a book and choose
+                  “Add to shelf” to save it here.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                  {visibleShelf.map((book) => (
+                    <BookCard
+                      key={book.id}
+                      book={book}
+                      shelfStatus={book.status}
+                      onSetStatus={(status) => setBookStatus(book, status)}
+                      onRemove={() => removeBook(book.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
         )}
 
-        <footer className="mt-12 text-center text-sm text-[#7a705a]">
+        <footer className="mt-14 text-center text-sm text-[#7a705a]">
           Book information provided by Google Books and Project Gutenberg.
         </footer>
-        </div>
       </div>
     </main>
   );

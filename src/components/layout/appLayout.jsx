@@ -11,9 +11,9 @@ export default function AppLayout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-14 items-center gap-2 border-b px-4">
-          <SidebarTrigger />
-        </header>
+        {/* <header className="flex h-14 items-center gap-2 border-b px-4 bg-[#faf3e6]"> */}
+           <SidebarTrigger /> 
+        {/* </header> */}
         <div className="min-w-0 p-6">
           <Outlet />
         </div>

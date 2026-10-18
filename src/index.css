@@ -49,7 +49,7 @@
 }
 
 :root {
-    --background: oklch(1 0 0);
+    --background: #faf3e6;
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
@@ -76,7 +76,7 @@
     --sidebar: #faf3e6;
     --sidebar-foreground: #3f372f;
     --sidebar-primary: #6b7d58;
-    --sidebar-primary-foreground: #ffffff;
+    --sidebar-primary-foreground: #faf3e6;
     --sidebar-accent: #efe4d0;
     --sidebar-accent-foreground: #3f372f;
     --sidebar-border: #e3d6c2;
