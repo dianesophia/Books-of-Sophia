@@ -14,6 +14,11 @@ import Achievements from "./features/achievements/pages/achievements";
 import Games from "./features/games/pages/games";
 import Profile from "./features/profile/pages/profile";
 
+import GuessBook from "./features/games/components/guessbook";
+import MemoryMatch from "./features/games/components/memoryMatch";
+import ShelfDetective from "./features/games/components/shelfDetective";
+import WordHunt from "./features/games/components/wordHunt";
+
 function App() {
   return (
     <Routes>
@@ -31,6 +36,12 @@ function App() {
         <Route path="/achievements" element={<Achievements />} />
         <Route path="/games" element={<Games />} />
         <Route path="/profile" element={<Profile />} />
+
+        <Route path="/guess-book" element={<GuessBook/>}/>
+        <Route path="/memory-match" element={<MemoryMatch/>}/>
+        <Route path="/shelf-detective" element={<ShelfDetective/>}/>
+        <Route path="/word-hunt" element={<WordHunt/>}/>
+
       </Route>
 
     </Routes>
