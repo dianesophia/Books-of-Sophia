@@ -1,22 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 import Desk from "@/assets/background/cozy_desk.jpg"
 
-/* ---------- Your data (replace with real values from your app) ---------- */
-
-const USER = {
-  name: 'Sophia',
-  email: 'sophia@example.com',
-  joined: 'Oct 1, 2025',
-  avatar: null, // set to an imported image to show a photo instead of the initial
-  level: 3,
-  title: 'The Curious Reader',
-  xp: 120,
-  xpNeeded: 200,
-  booksRead: 12,
-  dayStreak: 5,
-  badges: 8,
-}
+/* ---------- Placeholder numbers ---------- */
+// Level and XP now come from Supabase. These three still need their own tables
+// (books read, reading streak, badges), so they stay fixed for now.
+const STATS = { booksRead: 12, dayStreak: 5, badges: 8 }
 
 // Home screen shortcuts on the desk. Change the paths to match your routes.
 const SHORTCUTS = [
@@ -100,27 +90,120 @@ function Clock() {
 
 /* ---------- Page ---------- */
 
+function formatJoined(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function Profile() {
   const navigate = useNavigate()
 
-  const [info, setInfo] = useState({ name: USER.name, email: USER.email })
-  const [draft, setDraft] = useState(info)
+  const [status, setStatus] = useState('loading') // 'loading' | 'ready' | 'signedout' | 'error'
+  const [userId, setUserId] = useState(null)
+  const [email, setEmail] = useState('')
+  const [profile, setProfile] = useState(null) // { name, avatar_url, level, level_title, xp, xp_needed, created_at }
+
+  const [draftName, setDraftName] = useState('')
   const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [infoOpen, setInfoOpen] = useState(true)
 
-  const xpPercent = Math.min(100, Math.round((USER.xp / USER.xpNeeded) * 100))
+  // Load the signed-in player's profile (this is where the XP comes from)
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      const { data: auth } = await supabase.auth.getUser()
+      const user = auth?.user
+      if (!user) {
+        if (!cancelled) setStatus('signedout')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name, avatar_url, level, level_title, xp, xp_needed, created_at')
+        .eq('id', user.id)
+        .single()
+
+      if (cancelled) return
+      if (error) {
+        console.error('Could not load profile:', error.message)
+        setStatus('error')
+        return
+      }
+
+      setUserId(user.id)
+      setEmail(user.email || '')
+      setProfile(data)
+      setStatus('ready')
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const startEdit = () => {
-    setDraft(info)
+    setDraftName(profile.name)
+    setSaveError('')
     setInfoOpen(true)
     setEditing(true)
   }
 
-  const saveEdit = () => {
-    // TODO: send the new values to your API here
-    setInfo({ name: draft.name.trim() || info.name, email: draft.email.trim() || info.email })
+  const saveEdit = async () => {
+    const name = draftName.trim()
+    if (!name) {
+      setSaveError('Please enter a name.')
+      return
+    }
+
+    setSaving(true)
+    setSaveError('')
+    const { error } = await supabase.from('profiles').update({ name }).eq('id', userId)
+    setSaving(false)
+
+    if (error) {
+      setSaveError(error.message)
+      return
+    }
+    setProfile((p) => ({ ...p, name }))
     setEditing(false)
   }
+
+  if (status === 'loading') {
+    return (
+      <section className="flex min-h-screen w-full items-center justify-center bg-[#faf3e6] font-serif text-[#6f6556]">
+        Loading your profile...
+      </section>
+    )
+  }
+
+  if (status === 'signedout') {
+    return (
+      <section className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-[#faf3e6] px-6 text-center font-serif text-[#2f2a22]">
+        <p>Please sign in to see your profile.</p>
+        <button
+          type="button"
+          onClick={() => navigate('/login')}
+          className="rounded-lg bg-[#6b7d48] px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#586a3a]"
+        >
+          Sign in
+        </button>
+      </section>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <section className="flex min-h-screen w-full items-center justify-center bg-[#faf3e6] px-6 text-center font-serif text-[#9a5a50]">
+        We couldn&apos;t load your profile. Please try again.
+      </section>
+    )
+  }
+
+  const xpPercent = Math.min(100, Math.round((profile.xp / profile.xp_needed) * 100))
 
   return (
     <section className="grid min-h-screen w-full gap-6 bg-[#faf3e6] px-6 py-8 font-serif text-[#2f2a22] md:px-12 md:py-12 lg:grid-cols-[minmax(320px,420px)_1fr]">
@@ -129,11 +212,11 @@ function Profile() {
         <h1 className="mb-6 text-2xl font-normal">My Profile</h1>
 
         <div className="mb-5 flex items-center gap-4">
-          <Avatar name={info.name} src={USER.avatar} />
+          <Avatar name={profile.name} src={profile.avatar_url} />
           <div>
-            <div className="text-lg font-semibold">{info.name}</div>
+            <div className="text-lg font-semibold">{profile.name}</div>
             <div className="text-xs text-[#6f6556]">
-              Level {USER.level} - {USER.title}
+              Level {profile.level} - {profile.level_title}
             </div>
           </div>
         </div>
@@ -141,22 +224,22 @@ function Profile() {
         <div
           className="mb-1 h-2.5 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
           role="progressbar"
-          aria-valuenow={USER.xp}
+          aria-valuenow={profile.xp}
           aria-valuemin={0}
-          aria-valuemax={USER.xpNeeded}
+          aria-valuemax={profile.xp_needed}
           aria-label="Experience points"
         >
-          <div className="h-full rounded-full bg-[#6b8a7a]" style={{ width: `${xpPercent}%` }} />
+          <div className="h-full rounded-full bg-[#6b8a7a] transition-all" style={{ width: `${xpPercent}%` }} />
         </div>
         <div className="mb-5 flex justify-between text-[0.7rem] text-[#6f6556]">
-          <span>{USER.xp} / {USER.xpNeeded} XP</span>
-          <span>{USER.xpNeeded - USER.xp} XP to next level</span>
+          <span>{profile.xp} / {profile.xp_needed} XP</span>
+          <span>{profile.xp_needed - profile.xp} XP to next level</span>
         </div>
 
         <div className="mb-5 flex rounded-xl border border-[#e3d8bf] bg-[#fdf9ef]">
-          <Stat value={USER.booksRead} label="Books Read" />
-          <Stat value={USER.dayStreak} label="Day Streak" />
-          <Stat value={USER.badges} label="Badges" />
+          <Stat value={STATS.booksRead} label="Books Read" />
+          <Stat value={STATS.dayStreak} label="Day Streak" />
+          <Stat value={STATS.badges} label="Badges" />
         </div>
 
         {/* Personal info */}
@@ -188,30 +271,21 @@ function Profile() {
                 {editing ? (
                   <input
                     className={inputBox}
-                    value={draft.name}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
                     aria-label="Name"
                   />
                 ) : (
-                  <span className={valueBox}>{info.name}</span>
+                  <span className={valueBox}>{profile.name}</span>
                 )}
               </InfoRow>
               <InfoRow label="Email">
-                {editing ? (
-                  <input
-                    type="email"
-                    className={inputBox}
-                    value={draft.email}
-                    onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                    aria-label="Email"
-                  />
-                ) : (
-                  <span className={valueBox}>{info.email}</span>
-                )}
+                <span className={valueBox}>{email}</span>
               </InfoRow>
               <InfoRow label="Joined">
-                <span className={valueBox}>{USER.joined}</span>
+                <span className={valueBox}>{formatJoined(profile.created_at)}</span>
               </InfoRow>
+              {saveError && <p className="text-xs text-[#9a5a50]">{saveError}</p>}
             </div>
           )}
         </div>
@@ -221,13 +295,15 @@ function Profile() {
             <button
               type="button"
               onClick={saveEdit}
-              className="rounded-lg bg-[#6b7d48] px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+              disabled={saving}
+              className="rounded-lg bg-[#6b7d48] px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a] disabled:opacity-60"
             >
-              Save
+              {saving ? 'Saving...' : 'Save'}
             </button>
             <button
               type="button"
               onClick={() => setEditing(false)}
+              disabled={saving}
               className="rounded-lg border border-[#6b7d48] px-5 py-2.5 text-sm text-[#586a3a] transition-colors hover:bg-[#e4ebd0]"
             >
               Cancel

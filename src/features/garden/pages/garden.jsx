@@ -1,13 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import GardenBackground from "@/assets/background/reading_garden.jpg"
 
 /* ---------- Your data (replace with real values from your app) ---------- */
 
-const GARDEN = {
-  level: 3,
-  xp: 120,
-  xpNeeded: 200,
-}
 
 /* ---------- Plant and decoration icons (simple SVG, 48x48) ---------- */
 
@@ -191,9 +187,64 @@ function SeedCount({ count }) {
 
 /* ---------- Page ---------- */
 
+
 function MyGarden() {
-  const { level, xp, xpNeeded } = GARDEN
-  const xpPercent = Math.min(100, Math.round((xp / xpNeeded) * 100))
+  const [stats, setStats] = useState(null)
+  const [signedOut, setSignedOut] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadStats() {
+      try {
+        const { data: auth, error: authError } =
+          await supabase.auth.getUser()
+
+        if (authError) throw authError
+
+        if (!auth?.user) {
+          if (!cancelled) {
+            setSignedOut(true)
+            setLoading(false)
+          }
+          return
+        }
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('level, level_title, xp, xp_needed')
+          .eq('id', auth.user.id)
+          .single()
+
+        if (error) throw error
+
+        if (!cancelled) {
+          setStats(data)
+          setSignedOut(false)
+        }
+      } catch (error) {
+        console.error('Could not load garden XP:', error.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadStats()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const xp = Number(stats?.xp ?? 0)
+  const xpNeeded = Number(stats?.xp_needed ?? 0)
+  const level = stats?.level ?? 1
+
+  const xpPercent =
+    xpNeeded > 0
+      ? Math.min(100, Math.round((xp / xpNeeded) * 100))
+      : 0
 
   return (
     <section className="relative min-h-screen w-full overflow-hidden bg-[#faf3e6] font-serif text-[#2f2a22]">
@@ -207,30 +258,68 @@ function MyGarden() {
       <div className="relative grid min-h-screen gap-6 px-6 py-8 md:px-12 md:py-10 lg:grid-cols-[1fr_minmax(320px,380px)]">
         {/* Title over the scene */}
         <div className="min-h-[260px]">
-          <h1 className="mb-1 text-4xl font-normal [text-shadow:0_1px_3px_rgba(255,255,255,0.9)]">My Garden</h1>
-          <p className="text-base [text-shadow:0_1px_3px_rgba(255,255,255,0.9)]">Read more. Grow more.</p>
+          <h1 className="mb-1 text-4xl font-normal [text-shadow:0_1px_3px_rgba(255,255,255,0.9)]">
+            My Garden
+          </h1>
+          <p className="text-base [text-shadow:0_1px_3px_rgba(255,255,255,0.9)]">
+            Read more. Grow more.
+          </p>
         </div>
 
         {/* Side panels */}
         <div className="flex flex-col gap-4 lg:mt-16">
-          {/* Garden level */}
+          {/* Garden XP — synced with the Games page */}
           <div className="flex items-center gap-4 rounded-2xl border border-[#e3d8bf] bg-[#fbf6ea]/90 p-4 shadow-md backdrop-blur-sm">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#f1e8d3]">
               <Art Icon={PotIcon} className="h-11 w-11" />
             </div>
+
             <div className="min-w-0 flex-1">
-              <div className="mb-2 text-sm">Garden Level {level}</div>
-              <div
-                className="mb-1 h-3 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
-                role="progressbar"
-                aria-valuenow={xp}
-                aria-valuemin={0}
-                aria-valuemax={xpNeeded}
-                aria-label="Garden experience points"
-              >
-                <div className="h-full rounded-full bg-[#6b8a7a] transition-all" style={{ width: `${xpPercent}%` }} />
-              </div>
-              <p className="text-center text-[0.7rem] text-[#6f6556]">{xp} / {xpNeeded} XP</p>
+              {loading ? (
+                <div className="space-y-2">
+                  <div className="h-4 w-28 animate-pulse rounded bg-[#e3d8bf]" />
+                  <div className="h-3 w-full animate-pulse rounded bg-[#e3d8bf]" />
+                  <div className="h-3 w-20 animate-pulse rounded bg-[#e3d8bf]" />
+                </div>
+              ) : signedOut ? (
+                <p className="text-sm text-[#6f6556]">
+                  Sign in to earn XP from games.
+                </p>
+              ) : stats ? (
+                <>
+                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-1">
+                    <span className="text-sm font-semibold">
+                      Garden Level {level}
+                    </span>
+                    <span className="text-xs text-[#6f6556]">
+                      {stats.level_title}
+                    </span>
+                  </div>
+
+                  <div
+                    className="mb-1 h-3 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
+                    role="progressbar"
+                    aria-valuenow={xp}
+                    aria-valuemin={0}
+                    aria-valuemax={xpNeeded}
+                    aria-label="Garden experience points"
+                  >
+                    <div
+                      className="h-full rounded-full bg-[#6b8a7a] transition-all duration-500"
+                      style={{ width: `${xpPercent}%` }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between gap-2 text-[0.7rem] text-[#6f6556]">
+                    <span>{xp} / {xpNeeded} XP</span>
+                    <span>{Math.max(0, xpNeeded - xp)} XP to next level</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-[#6f6556]">
+                  Unable to load your XP. Please refresh the page.
+                </p>
+              )}
             </div>
           </div>
 
@@ -238,7 +327,10 @@ function MyGarden() {
           <Panel title="Your Plants">
             <ul className="grid grid-cols-4 gap-3">
               {PLANTS.map(({ id, name, count, Icon }) => (
-                <li key={id} className="flex flex-col items-center gap-1 text-center">
+                <li
+                  key={id}
+                  className="flex flex-col items-center gap-1 text-center"
+                >
                   <div className="flex aspect-square w-full items-center justify-center rounded-xl border border-[#e3d8bf] bg-[#f1e8d3] transition-transform hover:-translate-y-0.5">
                     <Art Icon={Icon} className="h-3/4 w-3/4" />
                   </div>
@@ -267,5 +359,6 @@ function MyGarden() {
     </section>
   )
 }
+
 
 export default MyGarden

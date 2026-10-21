@@ -111,14 +111,7 @@ async function fetchGutendexBooks(query) {
   });
 }
 
-/*
-  Look and feel
-  paper  #faf3e6   page background
-  ink    #2b3a30   text (a deep green-black instead of grey)
-  pine   #4f6a4c   buttons and active states
-  oak    #b98a5e   the little wooden ledge under each cover
-  muted  #7a705a   secondary text
-*/
+
 const SERIF = '"Fraunces", Georgia, "Times New Roman", serif';
 const SANS =
   '"Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
