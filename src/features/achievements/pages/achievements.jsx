@@ -1,6 +1,18 @@
 
 import React, { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase';
+import BookLove from '../../../assets/badge/badge_book_love.png';
+import Book from '@/assets/badge/badge_book.png';
+import Flower from '@/assets/badge/badge_flower.png';
+import Garden from '@/assets/badge/badge_garden.png';
+import Key from '@/assets/badge/badge_key.png';
+import Moon from '@/assets/badge/badge_moon.png';
+import Mountain from '@/assets/badge/badge_mountain.png';
+import Quotes from '@/assets/badge/badge_quotes.png';
+import Sprout from '@/assets/badge/badge_sprout.png';
+import Star from '@/assets/badge/badge_star.png';
+import Streak from '@/assets/badge/badge_streak.png';
+import Trophy from '@/assets/badge/badge_trophy.png';
 
 /* ---------- Badge Icons ---------- */
 
