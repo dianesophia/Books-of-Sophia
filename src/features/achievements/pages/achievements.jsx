@@ -1,153 +1,19 @@
 
 import React, { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase';
-import BookLove from '../../../assets/badge/badge_book_love.png';
-import Book from '@/assets/badge/badge_book.png';
-import Flower from '@/assets/badge/badge_flower.png';
-import Garden from '@/assets/badge/badge_garden.png';
-import Key from '@/assets/badge/badge_key.png';
-import Moon from '@/assets/badge/badge_moon.png';
-import Mountain from '@/assets/badge/badge_mountain.png';
-import Quotes from '@/assets/badge/badge_quotes.png';
-import Sprout from '@/assets/badge/badge_sprout.png';
-import Star from '@/assets/badge/badge_star.png';
-import Streak from '@/assets/badge/badge_streak.png';
-import Trophy from '@/assets/badge/badge_trophy.png';
+import { supabase } from '@/lib/supabase'
 
-/* ---------- Badge Icons ---------- */
-
-function BookIcon() {
-  return (
-    <g
-      stroke="#6b4a2f"
-      strokeWidth="2.5"
-      strokeLinejoin="round"
-      strokeLinecap="round"
-    >
-      <path
-        d="M28 38 q11 -5 22 2 q11 -7 22 -2 v26 q-11 -4 -22 2 q-11 -6 -22 -2 z"
-        fill="#fbf6ea"
-      />
-      <line x1="50" y1="40" x2="50" y2="66" />
-    </g>
-  )
-}
-
-function MoonIcon() {
-  return (
-    <g>
-      <path
-        d="M57 30 a21 21 0 1 0 10 32 a17 17 0 0 1 -10 -32 z"
-        fill="#f3d27a"
-      />
-      <circle cx="66" cy="40" r="1.8" fill="#f3d27a" />
-      <circle cx="70" cy="52" r="1.2" fill="#f3d27a" />
-    </g>
-  )
-}
-
-function GenreIcon() {
-  return (
-    <g stroke="rgba(0,0,0,0.25)" strokeWidth="1">
-      <rect x="31" y="38" width="11" height="28" rx="1.5" fill="#6b7d48" />
-      <rect x="44" y="33" width="11" height="33" rx="1.5" fill="#b5766f" />
-      <rect x="57" y="40" width="11" height="26" rx="1.5" fill="#d8b27a" />
-    </g>
-  )
-}
-
-function WormIcon() {
-  return (
-    <g stroke="#7a4a2a" strokeWidth="1.5">
-      <circle cx="32" cy="62" r="6.5" fill="#e8b27a" />
-      <circle cx="43" cy="54" r="6.5" fill="#e8b27a" />
-      <circle cx="55" cy="54" r="6.5" fill="#e8b27a" />
-      <circle cx="66" cy="45" r="8" fill="#f0c28f" />
-      <circle cx="68" cy="43" r="1.6" fill="#2f2a22" stroke="none" />
-    </g>
-  )
-}
-
-function ShieldIcon() {
-  return (
-    <g>
-      <path
-        d="M50 29 L68 36 V52 Q68 65 50 73 Q32 65 32 52 V36 Z"
-        fill="#d98f5c"
-        stroke="#8a4a2a"
-        strokeWidth="2.5"
-        strokeLinejoin="round"
-      />
-      <path d="M50 40 q9 8 0 18 q-9 -10 0 -18" fill="#fbe3a3" />
-    </g>
-  )
-}
-
-function QuoteIcon() {
-  return (
-    <g>
-      <path
-        d="M32 36 h36 a4 4 0 0 1 4 4 v18 a4 4 0 0 1 -4 4 h-20 l-8 8 v-8 h-8 a4 4 0 0 1 -4 -4 v-18 a4 4 0 0 1 4 -4 z"
-        fill="#fbf6ea"
-        stroke="#8a6a4a"
-        strokeWidth="2.5"
-        strokeLinejoin="round"
-      />
-      <text
-        x="50"
-        y="59"
-        textAnchor="middle"
-        fontSize="26"
-        fontFamily="Georgia, serif"
-        fill="#8a6a4a"
-      >
-        “”
-      </text>
-    </g>
-  )
-}
-
-function FlowerIcon() {
-  return (
-    <g>
-      <line
-        x1="50"
-        y1="48"
-        x2="50"
-        y2="72"
-        stroke="#6b7d48"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-      <path d="M50 64 q-12 -2 -14 -12 q12 0 14 12" fill="#8a9a63" />
-      <path d="M50 60 q12 -2 14 -12 q-12 0 -14 12" fill="#8a9a63" />
-      {[0, 72, 144, 216, 288].map((a) => (
-        <ellipse
-          key={a}
-          cx="50"
-          cy="35"
-          rx="5"
-          ry="8"
-          fill="#e8a89a"
-          transform={`rotate(${a} 50 44)`}
-        />
-      ))}
-      <circle cx="50" cy="44" r="4.5" fill="#e0b64a" />
-    </g>
-  )
-}
-
-function StarIcon() {
-  return (
-    <polygon
-      points="50,30 57,44 72,46 61,56 64,71 50,63 36,71 39,56 28,46 43,44"
-      fill="#fbf6ea"
-      stroke="#8a6a4a"
-      strokeWidth="2.5"
-      strokeLinejoin="round"
-    />
-  )
-}
+import BookLove from '@/assets/badge/badge_book_love.png'
+import Book from '@/assets/badge/badge_book.png'
+import Flower from '@/assets/badge/badge_flower.png'
+import Garden from '@/assets/badge/badge_garden.png'
+import Key from '@/assets/badge/badge_key.png'
+import Moon from '@/assets/badge/badge_moon.png'
+import Mountain from '@/assets/badge/badge_mountain.png'
+import Quotes from '@/assets/badge/badge_quotes.png'
+import Sprout from '@/assets/badge/badge_sprout.png'
+import Star from '@/assets/badge/badge_star.png'
+import Streak from '@/assets/badge/badge_streak.png'
+import Trophy from '@/assets/badge/badge_trophy.png'
 
 /* ---------- Badge Definitions ---------- */
 
@@ -156,7 +22,7 @@ const BADGES = [
     id: 'first-chapter',
     name: 'First Chapter',
     desc: 'Read your first book',
-    Icon: BookIcon,
+    image: Book,
     ring: '#e3c98c',
     bg: '#f6ecd2',
   },
@@ -164,7 +30,7 @@ const BADGES = [
     id: 'night-owl',
     name: 'Night Owl',
     desc: 'Read after 12 AM',
-    Icon: MoonIcon,
+    image: Moon,
     ring: '#d9b867',
     bg: '#2b3b66',
   },
@@ -172,23 +38,23 @@ const BADGES = [
     id: 'genre-explorer',
     name: 'Genre Explorer',
     desc: 'Read 5 different genres',
-    Icon: GenreIcon,
+    image: Key,
     ring: '#c9cfae',
-    bg: '#b9c4a0',
+    bg: '#dfe5cb',
   },
   {
     id: 'bookworm',
     name: 'Bookworm',
     desc: 'Read 10 books',
-    Icon: WormIcon,
+    image: BookLove,
     ring: '#e2a769',
     bg: '#f6e4c4',
   },
   {
     id: 'streak-master',
     name: 'Streak Master',
-    desc: '7 day reading streak',
-    Icon: ShieldIcon,
+    desc: 'Maintain a 7-day reading streak',
+    image: Streak,
     ring: '#e2a769',
     bg: '#f6e4c4',
   },
@@ -196,7 +62,7 @@ const BADGES = [
     id: 'quote-collector',
     name: 'Quote Collector',
     desc: 'Save 25 quotes',
-    Icon: QuoteIcon,
+    image: Quotes,
     ring: '#e3c98c',
     bg: '#f6ecd2',
   },
@@ -204,15 +70,15 @@ const BADGES = [
     id: 'garden-grower',
     name: 'Garden Grower',
     desc: 'Plant 10 flowers',
-    Icon: FlowerIcon,
+    image: Flower,
     ring: '#c9cfae',
     bg: '#dfe5cb',
   },
   {
     id: 'secret-reader',
     name: 'Secret Reader',
-    desc: '???',
-    Icon: StarIcon,
+    desc: 'Discover a hidden achievement',
+    image: Star,
     ring: '#e2a769',
     bg: '#f6e4c4',
   },
@@ -221,79 +87,47 @@ const BADGES = [
 /* ---------- Badge Medallion ---------- */
 
 function Medallion({ badge }) {
-  const { name, image, Icon, ring, bg, unlocked } = badge
-  const lockedStyle = unlocked ? '' : 'opacity-60 grayscale'
-
-  if (image) {
-    return (
-      <img
-        src={image}
-        alt={name}
-        className={`h-20 w-20 object-contain ${lockedStyle}`}
-      />
-    )
-  }
-
-  const bumps = Array.from({ length: 20 }, (_, i) => {
-    const a = (i / 20) * Math.PI * 2
-
-    return {
-      x: 50 + Math.cos(a) * 44,
-      y: 50 + Math.sin(a) * 44,
-    }
-  })
-
   return (
-    <svg
-      viewBox="0 0 100 100"
-      className={`h-20 w-20 ${lockedStyle}`}
-      role="img"
-      aria-label={name}
+    <div
+      className={`relative flex h-24 w-24 items-center justify-center rounded-full border-[5px] shadow-sm transition duration-300 ${
+        badge.unlocked
+          ? 'border-[#d9bd79] bg-[#f6ecd2]'
+          : 'border-[#d8d0c0] bg-[#eee8db]'
+      }`}
+      style={{
+        boxShadow: badge.unlocked
+          ? '0 4px 12px rgba(138, 106, 74, 0.15)'
+          : 'none',
+      }}
     >
-      {bumps.map((b, i) => (
-        <circle key={i} cx={b.x} cy={b.y} r="5" fill={ring} />
-      ))}
+      <div className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border border-white/70">
+        <img
+          src={badge.image}
+          alt={badge.name}
+          className={`h-16 w-16 object-contain ${
+            badge.unlocked ? '' : 'grayscale opacity-50'
+          }`}
+        />
+      </div>
 
-      <circle cx="50" cy="50" r="43" fill={ring} />
-
-      <circle
-        cx="50"
-        cy="50"
-        r="38"
-        fill="none"
-        stroke="rgba(255,255,255,0.7)"
-        strokeWidth="1.2"
-        strokeDasharray="1.5 3"
-      />
-
-      <circle
-        cx="50"
-        cy="50"
-        r="33"
-        fill={bg}
-        stroke="rgba(0,0,0,0.12)"
-        strokeWidth="1.5"
-      />
-
-      <Icon />
-
-      <ellipse
-        cx="34"
-        cy="89"
-        rx="7"
-        ry="3"
-        fill="#8a9a63"
-        transform="rotate(-25 34 89)"
-      />
-      <ellipse
-        cx="66"
-        cy="89"
-        rx="7"
-        ry="3"
-        fill="#8a9a63"
-        transform="rotate(25 66 89)"
-      />
-    </svg>
+      {!badge.unlocked && (
+        <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#faf3e6] bg-[#b9ad98] text-white">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="5" y="10" width="14" height="11" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+          </svg>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -302,36 +136,38 @@ function Medallion({ badge }) {
 function BadgeCard({ badge }) {
   return (
     <article
-      className={`flex flex-col items-center justify-center rounded-2xl border border-[#e3d8bf] bg-[#fbf6ea] px-2 py-8 text-center transition-shadow ${
-        badge.unlocked ? 'hover:shadow-md' : ''
+      className={`flex min-h-[245px] flex-col items-center justify-center rounded-2xl border border-[#e3d8bf] bg-[#fbf6ea] px-3 py-6 text-center transition duration-300 ${
+        badge.unlocked
+          ? 'hover:-translate-y-1 hover:shadow-md'
+          : 'opacity-85'
       }`}
     >
-      <div className="mb-5">
+      <div className="mb-4">
         <Medallion badge={badge} />
       </div>
 
-      <h2 className="mb-1.5 text-sm font-semibold">
+      <h2 className="mb-1.5 text-sm font-semibold text-[#2f2a22]">
         {badge.name}
       </h2>
 
-      <p className="text-[0.7rem] leading-snug text-[#6f6556]">
+      <p className="max-w-[150px] text-xs leading-relaxed text-[#6f6556]">
         {badge.desc}
       </p>
 
       <span
-        className={`mt-3 rounded-full px-3 py-1 text-[0.65rem] ${
+        className={`mt-3 rounded-full px-3 py-1 text-[10px] font-medium ${
           badge.unlocked
             ? 'bg-[#e3eadb] text-[#496444]'
             : 'bg-[#eee7d8] text-[#817665]'
         }`}
       >
-        {badge.unlocked ? 'Unlocked' : 'Locked'}
+        {badge.unlocked ? '✓ Unlocked' : '🔒 Locked'}
       </span>
     </article>
   )
 }
 
-/* ---------- Progress Icons ---------- */
+/* ---------- Progress Icon ---------- */
 
 function StatIcon({ children }) {
   return (
@@ -352,6 +188,8 @@ function StatIcon({ children }) {
   )
 }
 
+/* ---------- Progress Stat ---------- */
+
 function Stat({ label, value, icon }) {
   return (
     <div className="flex items-center gap-3 border-t border-[#e3d8bf] py-3 first:border-t-0">
@@ -359,7 +197,9 @@ function Stat({ label, value, icon }) {
 
       <div>
         <div className="text-xs text-[#6f6556]">{label}</div>
-        <div className="text-2xl leading-tight">{value}</div>
+        <div className="text-2xl leading-tight text-[#2f2a22]">
+          {value}
+        </div>
       </div>
     </div>
   )
@@ -435,13 +275,10 @@ function Achievements() {
         if (authError) throw authError
 
         if (!user) {
-          if (isMounted) {
-            setError('Please log in to view your achievements.')
-          }
-          return
+          throw new Error('Please log in to view your achievements.')
         }
 
-        // Load the user's profile and reading progress.
+        // Load the logged-in user's profile.
         const { data: profileData, error: profileError } =
           await supabase
             .from('profiles')
@@ -449,11 +286,11 @@ function Achievements() {
               'level, level_title, xp, xp_needed, books_read, day_streak'
             )
             .eq('id', user.id)
-            .single()
+            .maybeSingle()
 
         if (profileError) throw profileError
 
-        // Load earned badges for the current user.
+        // Load only this user's earned badges.
         const { data: badgeData, error: badgeError } =
           await supabase
             .from('user_badges')
@@ -464,14 +301,16 @@ function Achievements() {
 
         if (!isMounted) return
 
-        setProfile({
-          level: profileData.level ?? 1,
-          title: profileData.level_title ?? 'Beginner',
-          xp: profileData.xp ?? 0,
-          xpNeeded: profileData.xp_needed ?? 200,
-          booksRead: profileData.books_read ?? 0,
-          dayStreak: profileData.day_streak ?? 0,
-        })
+        if (profileData) {
+          setProfile({
+            level: profileData.level ?? 1,
+            title: profileData.level_title ?? 'Beginner',
+            xp: profileData.xp ?? 0,
+            xpNeeded: profileData.xp_needed ?? 200,
+            booksRead: profileData.books_read ?? 0,
+            dayStreak: profileData.day_streak ?? 0,
+          })
+        }
 
         setEarnedBadgeIds(
           (badgeData ?? []).map((badge) => badge.badge_id)
@@ -507,11 +346,12 @@ function Achievements() {
     dayStreak,
   } = profile
 
-  const safeXpNeeded = Math.max(1, xpNeeded)
+  const safeXpNeeded = Math.max(1, xpNeeded || 200)
+  const safeXp = Math.max(0, xp || 0)
 
   const xpPercent = Math.min(
     100,
-    Math.max(0, Math.round((xp / safeXpNeeded) * 100))
+    Math.round((safeXp / safeXpNeeded) * 100)
   )
 
   const badges = BADGES.map((badge) => ({
@@ -566,32 +406,32 @@ function Achievements() {
             Achievements
           </h1>
 
-          <p className="mb-8 text-base">
+          <p className="mb-8 text-base text-[#6f6556]">
             Collect badges. Unlock new stories.
           </p>
 
-          <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-5 sm:grid-cols-4">
+          <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
             {badges.map((badge) => (
               <BadgeCard key={badge.id} badge={badge} />
             ))}
           </div>
 
           <p className="mt-5 text-sm text-[#6f6556]">
-            You have unlocked {badgesEarned} of {BADGES.length} badges.
-            Keep reading to collect more!
+            You have unlocked {badgesEarned} of {BADGES.length}{' '}
+            badges. Keep reading to collect more!
           </p>
         </div>
 
-        {/* Progress panel */}
-        <aside className="h-fit w-full rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] p-6 shadow-lg lg:mt-14 lg:w-80 lg:shrink-0">
+        {/* Progress Panel */}
+        <aside className="h-fit w-full rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] p-6 shadow-sm lg:mt-14 lg:w-80 lg:shrink-0">
           <h2 className="mb-4 border-b border-[#e3d8bf] pb-3 text-base font-semibold">
             Your Progress
           </h2>
 
           {/* Level */}
-          <div className="mb-3 flex items-center gap-3">
+          <div className="mb-4 flex items-center gap-3">
             <StatIcon>
-              <path d="M4 6 q4 -2 8 1 q4 -3 8 -1 v12 q-4 -2 -8 1 q-4 -3 -8 -1 z" />
+              <path d="M4 6q4-2 8 1q4-3 8-1v12q-4-2-8 1q-4-3-8-1z" />
               <line x1="12" y1="7" x2="12" y2="19" />
             </StatIcon>
 
@@ -600,15 +440,22 @@ function Achievements() {
                 Level {level}
               </div>
 
-              <div className="text-sm">{title}</div>
+              <div className="text-sm font-semibold">
+                {title}
+              </div>
             </div>
           </div>
 
-          {/* XP progress */}
+          {/* XP Progress */}
+          <div className="mb-1 flex items-center justify-between text-xs text-[#6f6556]">
+            <span>Experience Points</span>
+            <span>{xpPercent}%</span>
+          </div>
+
           <div
-            className="mb-1 h-3 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
+            className="mb-2 h-3 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
             role="progressbar"
-            aria-valuenow={xp}
+            aria-valuenow={Math.min(safeXp, safeXpNeeded)}
             aria-valuemin={0}
             aria-valuemax={safeXpNeeded}
             aria-label="Experience points"
@@ -620,10 +467,10 @@ function Achievements() {
           </div>
 
           <p className="mb-5 text-center text-xs text-[#6f6556]">
-            {xp} / {xpNeeded} XP
+            {safeXp} / {safeXpNeeded} XP
           </p>
 
-          {/* Reading statistics */}
+          {/* Reading Statistics */}
           <div>
             <Stat
               label="Books Read"
@@ -647,17 +494,27 @@ function Achievements() {
               label="Day Streak"
               value={dayStreak}
               icon={
-                <path d="M12 3 q6 6 0 18 q-6 -12 0 -18 M12 12 q3 3 0 6 q-3 -3 0 -6" />
+                <path d="M12 3q6 6 0 18q-6-12 0-18M12 12q3 3 0 6q-3-3 0-6" />
               }
             />
 
             <Stat
-              label="Badges"
+              label="Experience Points"
+              value={safeXp}
+              icon={
+                <>
+                  <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z" />
+                </>
+              }
+            />
+
+            <Stat
+              label="Badges Earned"
               value={`${badgesEarned} / ${BADGES.length}`}
               icon={
                 <>
                   <circle cx="12" cy="10" r="5" />
-                  <path d="M9 14 l-2 7 l5 -3 l5 3 l-2 -7" />
+                  <path d="M9 14l-2 7 5-3 5 3-2-7" />
                 </>
               }
             />
