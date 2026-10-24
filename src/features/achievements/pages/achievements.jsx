@@ -5,15 +5,11 @@ import { supabase } from '@/lib/supabase'
 import BookLove from '@/assets/badge/badge_book_love.png'
 import Book from '@/assets/badge/badge_book.png'
 import Flower from '@/assets/badge/badge_flower.png'
-import Garden from '@/assets/badge/badge_garden.png'
 import Key from '@/assets/badge/badge_key.png'
 import Moon from '@/assets/badge/badge_moon.png'
-import Mountain from '@/assets/badge/badge_mountain.png'
 import Quotes from '@/assets/badge/badge_quotes.png'
-import Sprout from '@/assets/badge/badge_sprout.png'
 import Star from '@/assets/badge/badge_star.png'
 import Streak from '@/assets/badge/badge_streak.png'
-import Trophy from '@/assets/badge/badge_trophy.png'
 
 /* ---------- Badge Definitions ---------- */
 
@@ -83,6 +79,41 @@ const BADGES = [
     bg: '#f6e4c4',
   },
 ]
+
+/* ---------- Paper Texture ---------- */
+
+// Browser-generated paper grain; no external image needed.
+const grain = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.36 0 0 0 0 0.25 0 0 0 0.25 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")`
+
+function PaperBackground() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-2xl"
+    >
+      {/* Base paper color */}
+      <div className="absolute inset-0 bg-[#faf3e6]" />
+
+      {/* Natural paper grain */}
+      <div
+        className="absolute inset-0 opacity-50 mix-blend-multiply"
+        style={{ backgroundImage: grain }}
+      />
+
+      {/* Aged and darker paper corners */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse at center, transparent 45%, rgba(150,115,70,0.10) 78%, rgba(120,85,50,0.22) 100%)',
+        }}
+      />
+
+      {/* Soft inset paper shading */}
+      <div className="absolute inset-0 rounded-2xl shadow-[inset_0_0_35px_rgba(170,140,95,0.18)]" />
+    </div>
+  )
+}
 
 /* ---------- Badge Medallion ---------- */
 
@@ -188,7 +219,7 @@ function StatIcon({ children }) {
   )
 }
 
-/* ---------- Progress Stat ---------- */
+/* ---------- Statistics ---------- */
 
 function Stat({ label, value, icon }) {
   return (
@@ -275,7 +306,9 @@ function Achievements() {
         if (authError) throw authError
 
         if (!user) {
-          throw new Error('Please log in to view your achievements.')
+          throw new Error(
+            'Please log in to view your achievements.'
+          )
         }
 
         // Load the logged-in user's profile.
@@ -363,16 +396,22 @@ function Achievements() {
     (badge) => badge.unlocked
   ).length
 
+  /* ---------- Loading State ---------- */
+
   if (loading) {
     return (
       <section className="flex min-h-screen items-center justify-center bg-[#faf3e6] font-serif text-[#2f2a22]">
         <div className="text-center">
           <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-[#e3d8bf] border-t-[#6b7d48]" />
-          <p className="text-lg">Loading your achievements...</p>
+          <p className="text-lg">
+            Loading your achievements...
+          </p>
         </div>
       </section>
     )
   }
+
+  /* ---------- Error State ---------- */
 
   if (error) {
     return (
@@ -394,13 +433,15 @@ function Achievements() {
     )
   }
 
+  /* ---------- Main Page ---------- */
+
   return (
     <section className="relative flex min-h-screen w-full flex-col bg-[#faf3e6] px-6 py-8 font-serif text-[#2f2a22] md:px-12 md:py-12 lg:px-16">
       <Sprig className="right-4 top-4 h-20 w-16" />
       <Sprig className="bottom-4 right-6 h-20 w-16 -scale-x-100" />
 
       <div className="flex w-full flex-1 flex-col gap-8 lg:flex-row">
-        {/* Badges */}
+        {/* Badges Section */}
         <div className="flex min-w-0 flex-1 flex-col">
           <h1 className="mb-1 text-4xl font-normal">
             Achievements
@@ -422,102 +463,106 @@ function Achievements() {
           </p>
         </div>
 
-        {/* Progress Panel */}
-        <aside className="h-fit w-full rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] p-6 shadow-sm lg:mt-14 lg:w-80 lg:shrink-0">
-          <h2 className="mb-4 border-b border-[#e3d8bf] pb-3 text-base font-semibold">
-            Your Progress
-          </h2>
+        {/* Progress Panel with Paper Background */}
+        <aside className="relative isolate h-fit w-full overflow-hidden rounded-2xl border border-[#e3d8bf] shadow-[0_12px_30px_rgba(60,45,30,0.10)] lg:mt-14 lg:w-80 lg:shrink-0">
+          {/* Background must be behind all panel content */}
+          <PaperBackground />
 
-          {/* Level */}
-          <div className="mb-4 flex items-center gap-3">
-            <StatIcon>
-              <path d="M4 6q4-2 8 1q4-3 8-1v12q-4-2-8 1q-4-3-8-1z" />
-              <line x1="12" y1="7" x2="12" y2="19" />
-            </StatIcon>
+          {/* Foreground content */}
+          <div className="relative z-10 p-6">
+            <h2 className="mb-4 border-b border-[#e3d8bf] pb-3 text-base font-semibold">
+              Your Progress
+            </h2>
 
-            <div>
-              <div className="text-xs text-[#6f6556]">
-                Level {level}
-              </div>
+            {/* Level */}
+            <div className="mb-4 flex items-center gap-3">
+              <StatIcon>
+                <path d="M4 6q4-2 8 1q4-3 8-1v12q-4-2-8 1q-4-3-8-1z" />
+                <line x1="12" y1="7" x2="12" y2="19" />
+              </StatIcon>
 
-              <div className="text-sm font-semibold">
-                {title}
+              <div>
+                <div className="text-xs text-[#6f6556]">
+                  Level {level}
+                </div>
+
+                <div className="text-sm font-semibold">
+                  {title}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* XP Progress */}
-          <div className="mb-1 flex items-center justify-between text-xs text-[#6f6556]">
-            <span>Experience Points</span>
-            <span>{xpPercent}%</span>
-          </div>
+            {/* XP Progress */}
+            <div className="mb-1 flex items-center justify-between text-xs text-[#6f6556]">
+              <span>Experience Points</span>
+              <span>{xpPercent}%</span>
+            </div>
 
-          <div
-            className="mb-2 h-3 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
-            role="progressbar"
-            aria-valuenow={Math.min(safeXp, safeXpNeeded)}
-            aria-valuemin={0}
-            aria-valuemax={safeXpNeeded}
-            aria-label="Experience points"
-          >
             <div
-              className="h-full rounded-full bg-[#6b7d48] transition-all duration-500"
-              style={{ width: `${xpPercent}%` }}
-            />
-          </div>
+              className="mb-2 h-3 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
+              role="progressbar"
+              aria-valuenow={Math.min(safeXp, safeXpNeeded)}
+              aria-valuemin={0}
+              aria-valuemax={safeXpNeeded}
+              aria-label="Experience points"
+            >
+              <div
+                className="h-full rounded-full bg-[#6b7d48] transition-all duration-500"
+                style={{ width: `${xpPercent}%` }}
+              />
+            </div>
 
-          <p className="mb-5 text-center text-xs text-[#6f6556]">
-            {safeXp} / {safeXpNeeded} XP
-          </p>
+            <p className="mb-5 text-center text-xs text-[#6f6556]">
+              {safeXp} / {safeXpNeeded} XP
+            </p>
 
-          {/* Reading Statistics */}
-          <div>
-            <Stat
-              label="Books Read"
-              value={booksRead}
-              icon={
-                <>
-                  <rect
-                    x="5"
-                    y="4"
-                    width="14"
-                    height="16"
-                    rx="2"
-                  />
-                  <line x1="9" y1="9" x2="15" y2="9" />
-                  <line x1="9" y1="13" x2="15" y2="13" />
-                </>
-              }
-            />
+            {/* Reading Statistics */}
+            <div>
+              <Stat
+                label="Books Read"
+                value={booksRead}
+                icon={
+                  <>
+                    <rect
+                      x="5"
+                      y="4"
+                      width="14"
+                      height="16"
+                      rx="2"
+                    />
+                    <line x1="9" y1="9" x2="15" y2="9" />
+                    <line x1="9" y1="13" x2="15" y2="13" />
+                  </>
+                }
+              />
 
-            <Stat
-              label="Day Streak"
-              value={dayStreak}
-              icon={
-                <path d="M12 3q6 6 0 18q-6-12 0-18M12 12q3 3 0 6q-3-3 0-6" />
-              }
-            />
+              <Stat
+                label="Day Streak"
+                value={dayStreak}
+                icon={
+                  <path d="M12 3q6 6 0 18q-6-12 0-18M12 12q3 3 0 6q-3-3 0-6" />
+                }
+              />
 
-            <Stat
-              label="Experience Points"
-              value={safeXp}
-              icon={
-                <>
+              <Stat
+                label="Experience Points"
+                value={safeXp}
+                icon={
                   <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z" />
-                </>
-              }
-            />
+                }
+              />
 
-            <Stat
-              label="Badges Earned"
-              value={`${badgesEarned} / ${BADGES.length}`}
-              icon={
-                <>
-                  <circle cx="12" cy="10" r="5" />
-                  <path d="M9 14l-2 7 5-3 5 3-2-7" />
-                </>
-              }
-            />
+              <Stat
+                label="Badges Earned"
+                value={`${badgesEarned} / ${BADGES.length}`}
+                icon={
+                  <>
+                    <circle cx="12" cy="10" r="5" />
+                    <path d="M9 14l-2 7 5-3 5 3-2-7" />
+                  </>
+                }
+              />
+            </div>
           </div>
         </aside>
       </div>

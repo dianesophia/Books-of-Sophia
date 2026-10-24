@@ -1,8 +1,10 @@
-
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import Desk from '@/assets/background/cozy_desk.jpg'
+
+const AVATAR_BUCKET = 'avatars'
+const MAX_FILE_SIZE = 5 * 1024 * 1024
 
 /* ---------- Home screen shortcuts ---------- */
 
@@ -11,7 +13,9 @@ const SHORTCUTS = [
     label: 'My Library',
     path: '/library',
     icon: (
-      <path d="M4 5 q5 -2 8 1 q3 -3 8 -1 v13 q-5 -2 -8 1 q-3 -3 -8 -1 z M12 6 v13" />
+      <>
+        <path d="M4 5 q5 -2 8 1 q3 -3 8 -1 v13 q-5 -2 -8 1 q-3 -3 -8 -1 z M12 6 v13" />
+      </>
     ),
   },
   {
@@ -58,30 +62,32 @@ const SHORTCUTS = [
   },
 ]
 
-/* ---------- Small components ---------- */
+/* ---------- Avatar component ---------- */
 
-function Avatar({ name, src }) {
+function Avatar({ name, src, size = 'h-16 w-16' }) {
   const displayName = name || 'Reader'
 
   if (src) {
     return (
       <img
         src={src}
-        alt={`${displayName}'s avatar`}
-        className="h-16 w-16 rounded-full border-2 border-[#d9b867] object-cover"
+        alt={`${displayName}'s profile picture`}
+        className={`${size} shrink-0 rounded-full border-2 border-[#d9b867] object-cover`}
       />
     )
   }
 
   return (
     <div
-      className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#d9b867] bg-[#e8cfa6] text-2xl text-[#6b4a2f]"
-      aria-label={`${displayName}'s avatar`}
+      className={`${size} flex shrink-0 items-center justify-center rounded-full border-2 border-[#d9b867] bg-[#e8cfa6] text-2xl text-[#6b4a2f]`}
+      aria-label={`${displayName}'s profile picture`}
     >
       {displayName.charAt(0).toUpperCase()}
     </div>
   )
 }
+
+/* ---------- Small components ---------- */
 
 function Stat({ value, label }) {
   return (
@@ -147,6 +153,7 @@ function formatJoined(iso) {
 
 function Profile() {
   const navigate = useNavigate()
+  const fileInputRef = useRef(null)
 
   const [status, setStatus] = useState('loading')
   const [userId, setUserId] = useState(null)
@@ -156,10 +163,13 @@ function Profile() {
   const [draftName, setDraftName] = useState('')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [avatarError, setAvatarError] = useState('')
+  const [previewUrl, setPreviewUrl] = useState('')
   const [infoOpen, setInfoOpen] = useState(true)
 
-  /* ---------- Load profile from Supabase ---------- */
+  /* ---------- Load profile ---------- */
 
   useEffect(() => {
     let cancelled = false
@@ -203,7 +213,7 @@ function Profile() {
         setProfile(data)
         setStatus('ready')
       } catch (error) {
-        console.error('Could not load profile:', error.message)
+        console.error('Could not load profile:', error)
 
         if (!cancelled) {
           setStatus('error')
@@ -218,7 +228,117 @@ function Profile() {
     }
   }, [])
 
-  /* ---------- Edit profile ---------- */
+  /* ---------- Clean up temporary image preview ---------- */
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
+
+  /* ---------- Upload profile picture ---------- */
+
+  const handleAvatarSelection = async (event) => {
+    const file = event.target.files?.[0]
+
+    // Allow selecting the same file again later.
+    event.target.value = ''
+
+    if (!file) return
+
+    setAvatarError('')
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Please select an image file.')
+      return
+    }
+
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+    ]
+
+    if (!allowedTypes.includes(file.type)) {
+      setAvatarError('Use a JPG, PNG, WEBP, or GIF image.')
+      return
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setAvatarError('Image must be 5 MB or smaller.')
+      return
+    }
+
+    if (!userId) {
+      setAvatarError('Please sign in again before uploading.')
+      return
+    }
+
+    setUploading(true)
+
+    const temporaryUrl = URL.createObjectURL(file)
+    setPreviewUrl(temporaryUrl)
+
+    try {
+      // One fixed path per user, with no file extension. Every new upload
+      // replaces the previous one, so old files are not left behind.
+      // The browser uses the stored content type to display the image.
+      const filePath = `${userId}/profile`
+
+      // Upload the new picture to Supabase Storage.
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type,
+          cacheControl: '0',
+        })
+
+      if (uploadError) throw uploadError
+
+      // Retrieve its public URL.
+      const { data: publicData } = supabase.storage
+        .from(AVATAR_BUCKET)
+        .getPublicUrl(filePath)
+
+      // The path never changes, so add a timestamp to stop the browser
+      // from showing the old cached picture.
+      const avatarUrl = `${publicData.publicUrl}?t=${Date.now()}`
+
+      // Save the image URL to the user's profile.
+      const { data: updatedProfile, error: updateError } =
+        await supabase
+          .from('profiles')
+          .update({ avatar_url: avatarUrl })
+          .eq('id', userId)
+          .select('avatar_url')
+          .single()
+
+      if (updateError) throw updateError
+
+      setProfile((current) => ({
+        ...current,
+        avatar_url: updatedProfile.avatar_url,
+      }))
+
+      setPreviewUrl('')
+      setAvatarError('')
+    } catch (error) {
+      console.error('Could not upload profile picture:', error)
+
+      setPreviewUrl('')
+      setAvatarError(
+        error.message || 'Could not upload your profile picture.'
+      )
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  /* ---------- Edit profile name ---------- */
 
   const startEdit = () => {
     setDraftName(profile.name || '')
@@ -232,6 +352,11 @@ function Profile() {
 
     if (!name) {
       setSaveError('Please enter a name.')
+      return
+    }
+
+    if (name.length > 100) {
+      setSaveError('Name must be 100 characters or fewer.')
       return
     }
 
@@ -281,7 +406,7 @@ function Profile() {
         <button
           type="button"
           onClick={() => navigate('/login')}
-          className="rounded-lg bg-[#6b7d48] px-5 py-2.5 text-sm text-white transition-colors hover:bg-[#586a3a]"
+          className="rounded-lg bg-[#6b7d48] px-5 py-2.5 text-sm text-white hover:bg-[#586a3a]"
         >
           Sign in
         </button>
@@ -294,7 +419,7 @@ function Profile() {
   if (status === 'error' || !profile) {
     return (
       <section className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-[#faf3e6] px-6 text-center font-serif text-[#9a5a50]">
-        <p>We couldn&apos;t load your profile. Please try again.</p>
+        <p>We couldn't load your profile. Please try again.</p>
 
         <button
           type="button"
@@ -307,7 +432,7 @@ function Profile() {
     )
   }
 
-  /* ---------- XP and reading stats ---------- */
+  /* ---------- XP and reading statistics ---------- */
 
   const xp = Number(profile.xp ?? 0)
   const xpNeeded = Number(profile.xp_needed ?? 200)
@@ -320,8 +445,9 @@ function Profile() {
   const booksRead = Number(profile.books_read ?? 0)
   const dayStreak = Number(profile.day_streak ?? 0)
   const badges = Number(profile.badges ?? 0)
-
   const xpRemaining = Math.max(0, xpNeeded - xp)
+
+  const displayedAvatar = previewUrl || profile.avatar_url || ''
 
   /* ---------- Page UI ---------- */
 
@@ -336,21 +462,66 @@ function Profile() {
         {/* Avatar and player level */}
 
         <div className="mb-5 flex items-center gap-4">
-          <Avatar
-            name={profile.name}
-            src={profile.avatar_url}
-          />
+          <div className="relative shrink-0">
+            <Avatar
+              name={profile.name}
+              src={displayedAvatar}
+            />
 
-          <div className="min-w-0">
+            {uploading && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-xs text-white">
+                Uploading
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
             <div className="break-words text-lg font-semibold">
               {profile.name || 'Reader'}
             </div>
 
-            <div className="text-xs text-[#6f6556]">
-              Level {profile.level ?? 1} - {profile.level_title || 'Beginner'}
+            <div className="mb-2 text-xs text-[#6f6556]">
+              Level {profile.level ?? 1} -{' '}
+              {profile.level_title || 'Beginner'}
             </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleAvatarSelection}
+              className="hidden"
+              aria-label="Choose profile picture"
+              disabled={uploading}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="rounded-lg border border-[#b9c79a] bg-[#fdf9ef] px-3 py-1.5 text-xs text-[#586a3a] transition-colors hover:bg-[#e4ebd0] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {uploading
+                ? 'Uploading...'
+                : profile.avatar_url
+                  ? 'Change Photo'
+                  : 'Upload Photo'}
+            </button>
+
+            <p className="mt-1 text-[10px] text-[#6f6556]">
+              JPG, PNG, WEBP or GIF · Max 5 MB
+            </p>
           </div>
         </div>
+
+        {avatarError && (
+          <p
+            className="mb-4 rounded-lg bg-[#f8e8e2] p-3 text-xs text-[#9a4c40]"
+            role="alert"
+          >
+            {avatarError}
+          </p>
+        )}
 
         {/* XP progress bar */}
 
@@ -369,16 +540,11 @@ function Profile() {
         </div>
 
         <div className="mb-5 flex flex-wrap justify-between gap-1 text-[0.7rem] text-[#6f6556]">
-          <span>
-            {xp} / {xpNeeded} XP
-          </span>
-
-          <span>
-            {xpRemaining} XP to next level
-          </span>
+          <span>{xp} / {xpNeeded} XP</span>
+          <span>{xpRemaining} XP to next level</span>
         </div>
 
-        {/* Reading statistics from Supabase */}
+        {/* Reading statistics */}
 
         <div className="mb-5 flex rounded-xl border border-[#e3d8bf] bg-[#fdf9ef]">
           <Stat value={booksRead} label="Books Read" />
@@ -399,9 +565,7 @@ function Profile() {
 
             <svg
               viewBox="0 0 20 20"
-              className={`h-4 w-4 text-[#6f6556] transition-transform ${
-                infoOpen ? '' : 'rotate-180'
-              }`}
+              className={`h-4 w-4 text-[#6f6556] transition-transform ${infoOpen ? '' : 'rotate-180'}`}
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
@@ -477,6 +641,7 @@ function Profile() {
               onClick={() => {
                 setEditing(false)
                 setSaveError('')
+                setDraftName(profile.name || '')
               }}
               disabled={saving}
               className="rounded-lg border border-[#6b7d48] px-5 py-2.5 text-sm text-[#586a3a] transition-colors hover:bg-[#e4ebd0] disabled:opacity-60"
