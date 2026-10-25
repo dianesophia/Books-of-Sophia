@@ -2,11 +2,19 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 
-/* ---------- Placeholder (not in the database yet) ---------- */
+/* ---------- Daily quest ---------- */
 
-const QUEST = { label: 'Read 10 pages', done: 0, goal: 10 }
+const QUEST_LABEL = 'Read 10 pages'
+const QUEST_GOAL = 10
 
 /* ---------- Helpers ---------- */
+
+// Today's date in the reader's own time zone (YYYY-MM-DD)
+function todayIso() {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
 
 function greeting(hour) {
   if (hour < 12) return 'Good morning'
@@ -131,6 +139,7 @@ function Home() {
 
   const [profile, setProfile] = useState(null)
   const [shelf, setShelf] = useState([])
+  const [pagesToday, setPagesToday] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
@@ -147,13 +156,14 @@ function Home() {
         const user = auth?.user
         if (!user) return // signed out: show the page with no saved data
 
-        const [profileResult, shelfResult] = await Promise.all([
+        const [profileResult, shelfResult, logResult] = await Promise.all([
           supabase.from('profiles').select('name, avatar_url').eq('id', user.id).single(),
           supabase
             .from('shelf_books')
             .select('book_id, title, book, status')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false }),
+          supabase.from('reading_log').select('pages').eq('user_id', user.id).eq('read_date', todayIso()),
         ])
 
         if (shelfResult.error) throw shelfResult.error
@@ -162,6 +172,11 @@ function Home() {
         // A missing profile row is not fatal; the page falls back to "Reader".
         setProfile(profileResult.data ?? null)
         setShelf(shelfResult.data.map(toBook))
+
+        // A problem with the reading log only affects the quest, so it is not fatal.
+        if (!logResult.error) {
+          setPagesToday(logResult.data.reduce((sum, row) => sum + Number(row.pages ?? 0), 0))
+        }
       } catch (error) {
         console.error('Could not load home data:', error)
         if (!cancelled) setLoadError("We couldn't load your books. Please refresh.")
@@ -193,7 +208,9 @@ function Home() {
   // Opens the book's details on the Library page
   const openBook = (book) => navigate(`/library?book=${encodeURIComponent(book.id)}`)
 
-  const questPercent = Math.min(100, Math.round((QUEST.done / QUEST.goal) * 100))
+  const questDone = Math.min(QUEST_GOAL, Math.max(0, pagesToday))
+  const questComplete = questDone >= QUEST_GOAL
+  const questPercent = Math.round((questDone / QUEST_GOAL) * 100)
 
   const dateText = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 
@@ -315,12 +332,19 @@ function Home() {
             <h2 className="mb-3 text-sm font-semibold">Today&apos;s Quest</h2>
             <div className="flex items-end justify-between gap-4 rounded-xl bg-[#f7f0df] p-4">
               <div className="min-w-0 flex-1">
-                <p className="mb-5 mt-2 text-lg">{QUEST.label}</p>
+                <p className="mt-2 text-lg">{QUEST_LABEL}</p>
+                {questComplete ? (
+                  <p className="mb-3 mt-1 text-sm text-[#586a3a]">Quest complete. Nice reading today!</p>
+                ) : (
+                  <p className="mb-3 mt-1 text-sm text-[#6f6556]">
+                    {QUEST_GOAL - questDone} more {QUEST_GOAL - questDone === 1 ? 'page' : 'pages'} to go
+                  </p>
+                )}
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <ProgressBar percent={questPercent} label="Today's quest progress" />
                   </div>
-                  <span className="text-xs text-[#6f6556]">{QUEST.done} / {QUEST.goal}</span>
+                  <span className="text-xs text-[#6f6556]">{questDone} / {QUEST_GOAL}</span>
                 </div>
               </div>
               <PottedPlant className="h-12 w-12 shrink-0" />

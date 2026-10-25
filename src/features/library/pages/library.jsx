@@ -129,6 +129,13 @@ const STATUSES = [
 
 const TABS = [{ id: "all", label: "All Books" }, ...STATUSES];
 
+// Today's date in the reader's own time zone (YYYY-MM-DD)
+function todayIso() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 function scrollToRef(ref) {
   requestAnimationFrame(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -465,7 +472,24 @@ export default function Library() {
       .eq("user_id", userId)
       .eq("book_id", id);
 
-    if (error) setShelfError("Couldn't save that change. Please try again.");
+    if (error) {
+      setShelfError("Couldn't save that change. Please try again.");
+      return;
+    }
+
+    // Keep a daily record of pages read, so the home page can check today's quest
+    if (patch.pagesRead !== undefined) {
+      const pages = Number(patch.pagesRead) - Number(item.pagesRead ?? 0);
+      if (pages !== 0) {
+        const { error: logError } = await supabase.from("reading_log").insert({
+          user_id: userId,
+          book_id: id,
+          pages,
+          read_date: todayIso(),
+        });
+        if (logError) setShelfError("Saved, but today's reading count could not be updated.");
+      }
+    }
   }
 
   const statusById = useMemo(

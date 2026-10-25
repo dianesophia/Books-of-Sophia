@@ -122,8 +122,9 @@ export default function BookDetails({
     shelfStatus === "reading" ? "Continue Reading" : shelfStatus === "finished" ? "Read Again" : "Start Reading";
 
   function commitPages() {
-    if (!onShelf || pageCount <= 0) return;
-    const value = Math.max(0, Math.min(pageCount, Math.round(Number(pagesDraft) || 0)));
+    if (!onShelf) return;
+    const max = pageCount > 0 ? pageCount : 100000;
+    const value = Math.max(0, Math.min(max, Math.round(Number(pagesDraft) || 0)));
     setPagesDraft(String(value));
     if (value !== pagesRead) onSaveExtras({ pagesRead: value });
   }
@@ -225,6 +226,22 @@ export default function BookDetails({
                     <div className="h-full rounded-full bg-[#6b8a7a] transition-all duration-500" style={{ width: `${percent}%` }} />
                   </div>
                 </div>
+              )}
+
+              {/* Pages read, for books with no page count */}
+              {onShelf && percent === null && (
+                <label className="mt-5 flex items-center gap-2 text-xs text-[#6f6556]">
+                  Pages read
+                  <input
+                    type="number"
+                    min="0"
+                    value={pagesDraft}
+                    onChange={(event) => setPagesDraft(event.target.value)}
+                    onBlur={commitPages}
+                    onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
+                    className="w-20 rounded-md border border-[#dccfae] bg-white px-2 py-1 text-xs text-[#2b3a30] focus:outline-none focus:ring-2 focus:ring-[#4f6a4c]/30"
+                  />
+                </label>
               )}
 
               {/* Actions */}
