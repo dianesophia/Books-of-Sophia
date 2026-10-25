@@ -1,6 +1,6 @@
-
 import React, { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { syncProgress } from '@/lib/progress'
 
 import BookLove from '@/assets/badge/badge_book_love.png'
 import Book from '@/assets/badge/badge_book.png'
@@ -165,6 +165,11 @@ function Medallion({ badge }) {
 /* ---------- Badge Card ---------- */
 
 function BadgeCard({ badge }) {
+  const target = badge.progress?.target ?? 0
+  const current = Math.min(badge.progress?.current ?? 0, target)
+  const showProgress = !badge.unlocked && target > 1
+  const percent = target > 0 ? Math.round((current / target) * 100) : 0
+
   return (
     <article
       className={`flex min-h-[245px] flex-col items-center justify-center rounded-2xl border border-[#e3d8bf] bg-[#fbf6ea] px-3 py-6 text-center transition duration-300 ${
@@ -184,6 +189,27 @@ function BadgeCard({ badge }) {
       <p className="max-w-[150px] text-xs leading-relaxed text-[#6f6556]">
         {badge.desc}
       </p>
+
+      {showProgress && (
+        <div className="mt-3 w-full max-w-[130px]">
+          <div
+            className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
+            role="progressbar"
+            aria-valuenow={current}
+            aria-valuemin={0}
+            aria-valuemax={target}
+            aria-label={`${badge.name} progress`}
+          >
+            <div
+              className="h-full rounded-full bg-[#6b7d48] transition-all duration-500"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[10px] text-[#817665]">
+            {current} / {target}
+          </p>
+        </div>
+      )}
 
       <span
         className={`mt-3 rounded-full px-3 py-1 text-[10px] font-medium ${
@@ -287,6 +313,8 @@ function Achievements() {
   })
 
   const [earnedBadgeIds, setEarnedBadgeIds] = useState([])
+  const [progress, setProgress] = useState({})
+  const [newBadgeNames, setNewBadgeNames] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -311,42 +339,19 @@ function Achievements() {
           )
         }
 
-        // Load the logged-in user's profile.
-        const { data: profileData, error: profileError } =
-          await supabase
-            .from('profiles')
-            .select(
-              'level, level_title, xp, xp_needed, books_read, day_streak'
-            )
-            .eq('id', user.id)
-            .maybeSingle()
-
-        if (profileError) throw profileError
-
-        // Load only this user's earned badges.
-        const { data: badgeData, error: badgeError } =
-          await supabase
-            .from('user_badges')
-            .select('badge_id')
-            .eq('user_id', user.id)
-
-        if (badgeError) throw badgeError
+        // Works out your stats, streak, level and badges from your reading
+        // activity, saves them, and returns the results.
+        const result = await syncProgress(user.id)
 
         if (!isMounted) return
 
-        if (profileData) {
-          setProfile({
-            level: profileData.level ?? 1,
-            title: profileData.level_title ?? 'Beginner',
-            xp: profileData.xp ?? 0,
-            xpNeeded: profileData.xp_needed ?? 200,
-            booksRead: profileData.books_read ?? 0,
-            dayStreak: profileData.day_streak ?? 0,
-          })
-        }
-
-        setEarnedBadgeIds(
-          (badgeData ?? []).map((badge) => badge.badge_id)
+        setProfile(result.profile)
+        setEarnedBadgeIds(result.earnedIds)
+        setProgress(result.progress)
+        setNewBadgeNames(
+          result.newlyEarned
+            .map((id) => BADGES.find((badge) => badge.id === id)?.name)
+            .filter(Boolean)
         )
       } catch (err) {
         console.error('Error loading achievements:', err)
@@ -390,6 +395,7 @@ function Achievements() {
   const badges = BADGES.map((badge) => ({
     ...badge,
     unlocked: earnedBadgeIds.includes(badge.id),
+    progress: progress[badge.id],
   }))
 
   const badgesEarned = badges.filter(
@@ -450,6 +456,26 @@ function Achievements() {
           <p className="mb-8 text-base text-[#6f6556]">
             Collect badges. Unlock new stories.
           </p>
+
+          {newBadgeNames.length > 0 && (
+            <div
+              role="status"
+              className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-[#cfd9b5] bg-[#eef3e0] p-4 text-sm text-[#3f5a3d]"
+            >
+              <p>
+                New {newBadgeNames.length === 1 ? 'badge' : 'badges'} unlocked:{' '}
+                <strong>{newBadgeNames.join(', ')}</strong>
+              </p>
+              <button
+                type="button"
+                onClick={() => setNewBadgeNames([])}
+                aria-label="Dismiss"
+                className="rounded px-1 text-[#3f5a3d] hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
             {badges.map((badge) => (

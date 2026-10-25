@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Bookshelves from "../../../assets/background/bookshelves.jpg";
 import { supabase } from "@/lib/supabase";
-import BookDetails from "@/components/layout/bookDetails";
+import BookDetails from "./BookDetails";
+import { syncProgress } from "@/lib/progress";
 
 const GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes";
 const GUTENDEX_URL = "https://gutendex.com/books/";
@@ -490,6 +491,8 @@ export default function Library() {
         if (logError) setShelfError("Saved, but today's reading count could not be updated.");
       }
     }
+
+    syncProgress(userId).catch(() => {});
   }
 
   const statusById = useMemo(
@@ -539,7 +542,12 @@ export default function Library() {
       { onConflict: "user_id,book_id" }
     );
 
-    if (error) setShelfError("Couldn't save that change. Please try again.");
+    if (error) {
+      setShelfError("Couldn't save that change. Please try again.");
+      return;
+    }
+
+    syncProgress(userId).catch(() => {});
   }
 
   async function removeBook(id) {
@@ -551,7 +559,12 @@ export default function Library() {
       .delete()
       .eq("book_id", id);
 
-    if (error) setShelfError("Couldn't remove that book. Please try again.");
+    if (error) {
+      setShelfError("Couldn't remove that book. Please try again.");
+      return;
+    }
+
+    if (userId) syncProgress(userId).catch(() => {});
   }
 
   function clearSearch() {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { syncProgress } from '@/lib/progress'
 
 /* ---------- Helpers ---------- */
 
@@ -315,6 +316,7 @@ function Journal() {
     }
 
     setEntries((list) => [toEntry(data), ...list])
+    syncProgress(userId).catch(() => {})
     setBookId('')
     setText('')
     setRating(0)
@@ -338,6 +340,7 @@ function Journal() {
 
     setEntries((list) => list.filter((x) => x.id !== id))
     setOpenId(null)
+    syncProgress(userId).catch(() => {})
   }
 
   /* ---------- Loading, signed-out and error states ---------- */
