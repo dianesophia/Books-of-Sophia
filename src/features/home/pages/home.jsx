@@ -34,6 +34,10 @@ function toBook(row) {
   }
 }
 
+const iconProps = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }
+
+const focusRing = 'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]'
+
 /* ---------- Pieces ---------- */
 
 function Cover({ book, className = '', large = false }) {
@@ -43,13 +47,13 @@ function Cover({ book, className = '', large = false }) {
         src={book.cover}
         alt={`Cover of ${book.title}`}
         loading="lazy"
-        className={`rounded-sm object-cover shadow-md ${className}`}
+        className={`rounded-[3px] object-cover ${className}`}
       />
     )
   }
   return (
     <div
-      className={`flex items-center justify-center rounded-sm bg-[#4f6a4c] p-2 text-center font-semibold leading-tight text-[#faf3e6] shadow-md ${
+      className={`flex items-center justify-center rounded-[3px] bg-[#4f6a4c] p-2 text-center font-semibold leading-tight text-[#faf3e6] ${
         large ? 'text-base' : 'text-[0.6rem]'
       } ${className}`}
       aria-label={`Cover of ${book.title}`}
@@ -62,24 +66,72 @@ function Cover({ book, className = '', large = false }) {
 function ProgressBar({ percent, label }) {
   return (
     <div
-      className="h-2.5 w-full overflow-hidden rounded-full bg-[#e3d8bf]"
+      className="h-3 w-full overflow-hidden rounded-full bg-[#e3d8bf]/80"
       role="progressbar"
       aria-valuenow={percent}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-label={label}
     >
-      <div className="h-full rounded-full bg-[#6b8a7a] transition-all" style={{ width: `${percent}%` }} />
+      <div className="h-full rounded-full bg-[#6b8a7a] transition-all duration-700" style={{ width: `${percent}%` }} />
+    </div>
+  )
+}
+
+function QuestRing({ percent, done, goal }) {
+  const radius = 34
+  const circumference = 2 * Math.PI * radius
+
+  return (
+    <div className="relative h-24 w-24 shrink-0">
+      <svg
+        viewBox="0 0 80 80"
+        className="h-full w-full -rotate-90"
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Today's quest progress"
+      >
+        <circle cx="40" cy="40" r={radius} fill="none" stroke="#e8dcc0" strokeWidth="7" />
+        <circle
+          cx="40"
+          cy="40"
+          r={radius}
+          fill="none"
+          stroke="#6b8a7a"
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - percent / 100)}
+          className="transition-all duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl leading-none">{done}</span>
+        <span className="mt-0.5 text-[0.65rem] text-[#6f6556]">of {goal}</span>
+      </div>
     </div>
   )
 }
 
 function Avatar({ name, src }) {
-  if (src) return <img src={src} alt={name} className="h-9 w-9 rounded-full border-2 border-[#d9b867] object-cover" />
+  if (src) return <img src={src} alt={name} className="h-10 w-10 rounded-full border-2 border-[#d9b867] object-cover" />
   return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#d9b867] bg-[#e8cfa6] text-sm text-[#6b4a2f]">
+    <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#d9b867] bg-[#e8cfa6] text-base text-[#6b4a2f]">
       {name.charAt(0).toUpperCase()}
     </div>
+  )
+}
+
+function Chip({ icon, children }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f1e8d0] px-3 py-1 text-xs text-[#6b4a2f] ring-1 ring-[#e3d8bf]">
+      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" {...iconProps} aria-hidden="true">
+        {icon}
+      </svg>
+      {children}
+    </span>
   )
 }
 
@@ -129,8 +181,6 @@ function PottedPlant({ className = '' }) {
   )
 }
 
-const iconProps = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }
-
 /* ---------- Page ---------- */
 
 function Home() {
@@ -149,7 +199,7 @@ function Home() {
   const [panelOpen, setPanelOpen] = useState(false)
   const bellRef = useRef(null)
 
-  /* ---------- Load profile and shelf ---------- */
+  /* ---------- Load profile, shelf, quest and notifications ---------- */
 
   useEffect(() => {
     let cancelled = false
@@ -163,7 +213,11 @@ function Home() {
         if (!user) return // signed out: show the page with no saved data
 
         const [profileResult, shelfResult, logResult, notifyResult] = await Promise.all([
-          supabase.from('profiles').select('name, avatar_url').eq('id', user.id).single(),
+          supabase
+            .from('profiles')
+            .select('name, avatar_url, level, level_title, day_streak, books_read')
+            .eq('id', user.id)
+            .single(),
           supabase
             .from('shelf_books')
             .select('book_id, title, book, status')
@@ -286,241 +340,300 @@ function Home() {
   const questComplete = questDone >= QUEST_GOAL
   const questPercent = Math.round((questDone / QUEST_GOAL) * 100)
 
-  const dateText = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+  const dateText = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+  const dayStreak = Number(profile?.day_streak ?? 0)
+  const booksRead = Number(profile?.books_read ?? 0)
 
   return (
-    <section className="min-h-screen w-full bg-[#faf3e6] px-6 py-6 font-serif text-[#2f2a22] md:px-12 md:py-8">
-      {/* Top bar */}
-      <div className="mb-2 flex items-center justify-end gap-4">
-        <span className="text-xs text-[#6f6556]">{dateText}</span>
-        <div ref={bellRef} className="relative">
-          <button
-            type="button"
-            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} new` : 'Notifications'}
-            aria-expanded={panelOpen}
-            aria-haspopup="true"
-            onClick={togglePanel}
-            className="relative rounded-full p-1.5 text-[#6f6556] hover:text-[#2f2a22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" {...iconProps} aria-hidden="true">
-              <path d="M6 16 v-5 a6 6 0 0 1 12 0 v5 l2 2 H4 z M10 20 a2 2 0 0 0 4 0" />
-            </svg>
-            {unreadCount > 0 && (
-              <span
-                aria-hidden="true"
-                className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#c96b4a] px-1 text-[10px] leading-none text-white"
-              >
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
+    <section
+      className="min-h-screen w-full px-6 py-8 font-serif text-[#2f2a22] md:px-12 md:py-10"
+      style={{ background: 'radial-gradient(ellipse 90% 45% at 50% 0%, #fffaf0 0%, #faf3e6 70%)' }}
+    >
+      <div className="mx-auto w-full max-w-6xl">
+        {/* ---------- Header ---------- */}
+        <header className="mb-10 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="mb-1 text-sm text-[#8a7f66]">{dateText}</p>
+            <h1 className="text-4xl font-normal leading-tight tracking-tight md:text-5xl">
+              {greeting(now.getHours())}, {name}.
+            </h1>
+            <p className="mt-2 text-base text-[#6f6556]">Another day, another chapter.</p>
 
-          {panelOpen && (
-            <div
-              role="region"
-              aria-label="Notifications"
-              className="absolute right-0 top-full z-30 mt-2 w-80 max-w-[85vw] overflow-hidden rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] text-left shadow-[0_12px_30px_rgba(60,45,30,0.18)]"
-            >
-              <div className="flex items-center justify-between border-b border-[#e3d8bf] px-4 py-3">
-                <h2 className="text-sm font-semibold">Notifications</h2>
-                {notifications.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={clearNotifications}
-                    className="rounded text-xs text-[#6f6556] hover:text-[#2f2a22] hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-                  >
-                    Clear all
-                  </button>
-                )}
+            {profile && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Chip icon={<path d="M12 3q6 6 0 18q-6-12 0-18M12 12q3 3 0 6q-3-3 0-6" />}>
+                  {dayStreak} day streak
+                </Chip>
+                <Chip icon={<path d="M4 5 q5 -2 8 1 q3 -3 8 -1 v13 q-5 -2 -8 1 q-3 -3 -8 -1 z M12 6 v13" />}>
+                  {booksRead} {booksRead === 1 ? 'book' : 'books'} read
+                </Chip>
+                <Chip icon={<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z" />}>
+                  Level {profile.level ?? 1}
+                  {profile.level_title ? `, ${profile.level_title}` : ''}
+                </Chip>
               </div>
-
-              {notifications.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-[#6f6556]">
-                  Nothing new yet. Badges you earn will show up here.
-                </p>
-              ) : (
-                <ul className="max-h-80 overflow-y-auto">
-                  {notifications.map((item) => (
-                    <li key={item.id} className="border-b border-[#e3d8bf] last:border-b-0">
-                      <button
-                        type="button"
-                        onClick={() => navigate('/achievements')}
-                        className={`block w-full px-4 py-3 text-left transition-colors hover:bg-[#f3ecd8] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[#b9c79a] ${
-                          item.isNew ? 'bg-[#f6efd8]' : ''
-                        }`}
-                      >
-                        <span className="block text-sm font-semibold">{item.title}</span>
-                        {item.body && <span className="block text-xs text-[#6f6556]">{item.body}</span>}
-                        <span className="mt-1 block text-[0.7rem] text-[#8a7f66]">
-                          {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          aria-label="Open profile"
-          onClick={() => navigate('/profile')}
-          className="rounded-full focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-        >
-          <Avatar name={name} src={profile?.avatar_url} />
-        </button>
-      </div>
-
-      {/* Greeting */}
-      <div className="mb-8">
-        <h1 className="mb-2 text-4xl font-normal">
-          {greeting(now.getHours())}, {name}!
-        </h1>
-        <p className="text-base text-[#6f6556]">Another day, another chapter.</p>
-      </div>
-
-      {loadError && (
-        <p role="alert" className="mb-6 rounded-xl border border-[#e3c98f] bg-[#fbf1d6] p-4 text-sm text-[#6b5320]">
-          {loadError}
-        </p>
-      )}
-
-      {/* Currently reading + quest */}
-      <div className="mb-6 grid gap-6 lg:grid-cols-[1fr_minmax(260px,340px)]">
-        <article className="rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Currently Reading</h2>
-            {current && (
-              <button
-                type="button"
-                aria-label={`Read ${current.title}`}
-                onClick={() => openBook(current)}
-                className="rounded p-1 text-[#6f6556] hover:text-[#2f2a22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" {...iconProps} aria-hidden="true">
-                  <path d="M7 17 L17 7 M9 7 h8 v8" />
-                </svg>
-              </button>
             )}
           </div>
 
-          {loading ? (
-            <p className="py-6 text-sm text-[#6f6556]">Loading your books...</p>
-          ) : current ? (
-            <div className="flex items-center gap-5">
-              <Cover book={current} className="h-28 w-[4.5rem] shrink-0" />
-              <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-semibold">{current.title}</h3>
-                <p className="mb-4 text-sm text-[#6f6556]">{current.authors.join(', ')}</p>
-
-                {percent !== null ? (
-                  <>
-                    <p className="mb-1.5 text-xs text-[#6f6556]">
-                      Read {pagesRead} / {totalPages} pages
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <ProgressBar percent={percent} label={`${current.title} reading progress`} />
-                      </div>
-                      <span className="text-xs text-[#6f6556]">{percent}%</span>
-                    </div>
-                  </>
-                ) : (
-                  (
-                    <button
-                      type="button"
-                      onClick={() => openBook(current)}
-                      className="inline-block rounded-lg bg-[#6b7d48] px-4 py-2 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-                    >
-                      Keep reading
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="py-4">
-              <p className="mb-3 text-sm text-[#6f6556]">
-                You aren&apos;t reading anything yet. Pick a book and set it to Currently Reading.
-              </p>
+          <div className="flex shrink-0 items-center gap-2 rounded-full bg-[#fffaf0]/80 p-1.5 pl-3 shadow-sm ring-1 ring-[#e3d8bf]">
+            <div ref={bellRef} className="relative">
               <button
                 type="button"
-                onClick={() => navigate('/library')}
-                className="rounded-lg bg-[#6b7d48] px-4 py-2 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} new` : 'Notifications'}
+                aria-expanded={panelOpen}
+                aria-haspopup="true"
+                onClick={togglePanel}
+                className={`relative rounded-full p-2 text-[#6f6556] transition-colors hover:text-[#2f2a22] ${focusRing}`}
               >
-                Find a book
-              </button>
-            </div>
-          )}
-        </article>
-
-        <div className="relative">
-          <Plant className="absolute -top-16 -left-16 hidden h-20 w-20 lg:block" />
-          <Cat className="absolute -top-[3.1rem] right-6 hidden h-14 w-28 lg:block" />
-
-          <article className="h-full rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold">Today&apos;s Quest</h2>
-            <div className="flex items-end justify-between gap-4 rounded-xl bg-[#f7f0df] p-4">
-              <div className="min-w-0 flex-1">
-                <p className="mt-2 text-lg">{QUEST_LABEL}</p>
-                {questComplete ? (
-                  <p className="mb-3 mt-1 text-sm text-[#586a3a]">Quest complete. Nice reading today!</p>
-                ) : (
-                  <p className="mb-3 mt-1 text-sm text-[#6f6556]">
-                    {QUEST_GOAL - questDone} more {QUEST_GOAL - questDone === 1 ? 'page' : 'pages'} to go
-                  </p>
+                <svg viewBox="0 0 24 24" className="h-5 w-5" {...iconProps} aria-hidden="true">
+                  <path d="M6 16 v-5 a6 6 0 0 1 12 0 v5 l2 2 H4 z M10 20 a2 2 0 0 0 4 0" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#c96b4a] px-1 text-[10px] leading-none text-white"
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <ProgressBar percent={questPercent} label="Today's quest progress" />
+              </button>
+
+              {panelOpen && (
+                <div
+                  role="region"
+                  aria-label="Notifications"
+                  className="absolute right-0 top-full z-30 mt-3 w-80 max-w-[85vw] overflow-hidden rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] text-left shadow-[0_16px_36px_rgba(60,45,30,0.2)]"
+                >
+                  <div className="flex items-center justify-between border-b border-[#e3d8bf] px-4 py-3">
+                    <h2 className="text-sm font-semibold">Notifications</h2>
+                    {notifications.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={clearNotifications}
+                        className={`rounded text-xs text-[#6f6556] hover:text-[#2f2a22] hover:underline ${focusRing}`}
+                      >
+                        Clear all
+                      </button>
+                    )}
                   </div>
-                  <span className="text-xs text-[#6f6556]">{questDone} / {QUEST_GOAL}</span>
+
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-sm text-[#6f6556]">
+                      Nothing new yet. Badges you earn will show up here.
+                    </p>
+                  ) : (
+                    <ul className="max-h-80 overflow-y-auto">
+                      {notifications.map((item) => (
+                        <li key={item.id} className="border-b border-[#e3d8bf] last:border-b-0">
+                          <button
+                            type="button"
+                            onClick={() => navigate('/achievements')}
+                            className={`block w-full px-4 py-3 text-left transition-colors hover:bg-[#f3ecd8] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[#b9c79a] ${
+                              item.isNew ? 'bg-[#f6efd8]' : ''
+                            }`}
+                          >
+                            <span className="block text-sm font-semibold">{item.title}</span>
+                            {item.body && <span className="block text-xs text-[#6f6556]">{item.body}</span>}
+                            <span className="mt-1 block text-[0.7rem] text-[#8a7f66]">
+                              {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-              </div>
-              <PottedPlant className="h-12 w-12 shrink-0" />
+              )}
             </div>
-          </article>
-        </div>
-      </div>
 
-      {/* Continue your journey */}
-      <article className="rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-normal">Continue Your Journey</h2>
-          <button
-            type="button"
-            onClick={() => navigate('/library')}
-            className="flex items-center gap-1 rounded text-sm hover:text-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-          >
-            View all
-            <svg viewBox="0 0 24 24" className="h-4 w-4" {...iconProps} aria-hidden="true">
-              <path d="M4 12 h16 M14 6 l6 6 l-6 6" />
-            </svg>
-          </button>
-        </div>
+            <button
+              type="button"
+              aria-label="Open profile"
+              onClick={() => navigate('/profile')}
+              className={`rounded-full ${focusRing}`}
+            >
+              <Avatar name={name} src={profile?.avatar_url} />
+            </button>
+          </div>
+        </header>
 
-        {!loading && journey.length === 0 ? (
-          <p className="text-sm text-[#6f6556]">
-            Books you are reading or want to read will show up here.
+        {loadError && (
+          <p role="alert" className="mb-6 rounded-xl border border-[#e3c98f] bg-[#fbf1d6] p-4 text-sm text-[#6b5320]">
+            {loadError}
           </p>
-        ) : (
-          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {journey.map((book) => (
-              <li key={book.id}>
+        )}
+
+        {/* ---------- Currently reading + quest ---------- */}
+        <div className="grid gap-10 lg:grid-cols-[1.7fr_1fr] lg:gap-8">
+          <article className="relative overflow-hidden rounded-3xl border border-[#e3d8bf] bg-gradient-to-br from-[#fffaf0] to-[#f6ecd2] p-6 shadow-[0_18px_40px_-24px_rgba(80,60,30,0.45)] sm:p-8">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-sm text-[#6f6556]">Currently reading</h2>
+              {current && (
                 <button
                   type="button"
-                  onClick={() => openBook(book)}
-                  aria-label={`Read ${book.title}`}
-                  className="block w-full rounded-xl border border-[#e3d8bf] bg-[#fbf6ea] p-3 transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+                  aria-label={`Open ${current.title}`}
+                  onClick={() => openBook(current)}
+                  className={`rounded-full p-1.5 text-[#6f6556] transition-colors hover:bg-[#efe4c9] hover:text-[#2f2a22] ${focusRing}`}
                 >
-                  <Cover book={book} large className="aspect-[3/4] w-full" />
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" {...iconProps} aria-hidden="true">
+                    <path d="M7 17 L17 7 M9 7 h8 v8" />
+                  </svg>
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </article>
+              )}
+            </div>
+
+            {loading ? (
+              <p className="py-10 text-sm text-[#6f6556]">Loading your books...</p>
+            ) : current ? (
+              <div className="flex flex-col items-center gap-8 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => openBook(current)}
+                  aria-label={`Open ${current.title}`}
+                  className={`group relative shrink-0 rounded-sm ${focusRing}`}
+                >
+                  <span
+                    className="absolute -bottom-3 left-2 right-2 h-4 rounded-[50%] bg-[#5b4128]/25 blur-md"
+                    aria-hidden="true"
+                  />
+                  <Cover
+                    book={current}
+                    large
+                    className="relative h-52 w-36 -rotate-2 shadow-[6px_10px_22px_rgba(60,40,20,0.38)] transition-transform duration-300 group-hover:rotate-0"
+                  />
+                </button>
+
+                <div className="min-w-0 flex-1 text-center sm:text-left">
+                  <h3 className="text-2xl font-semibold leading-snug md:text-3xl">{current.title}</h3>
+                  <p className="mt-1 text-[#6f6556]">{current.authors.join(', ')}</p>
+
+                  {percent !== null && (
+                    <div className="mt-6">
+                      <div className="mb-2 flex items-center justify-between text-xs text-[#6f6556]">
+                        <span>
+                          Page {pagesRead} of {totalPages}
+                        </span>
+                        <span>{percent}%</span>
+                      </div>
+                      <ProgressBar percent={percent} label={`${current.title} reading progress`} />
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => openBook(current)}
+                    className={`mt-6 rounded-xl bg-[#6b7d48] px-6 py-2.5 text-sm text-white shadow-sm transition-colors hover:bg-[#586a3a] ${focusRing}`}
+                  >
+                    Continue reading
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="py-6">
+                <p className="mb-4 max-w-sm text-[#6f6556]">
+                  You aren&apos;t reading anything yet. Pick a book and set it to Currently Reading.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/library')}
+                  className={`rounded-xl bg-[#6b7d48] px-6 py-2.5 text-sm text-white shadow-sm transition-colors hover:bg-[#586a3a] ${focusRing}`}
+                >
+                  Find a book
+                </button>
+              </div>
+            )}
+          </article>
+
+          {/* Quest, written on a paper note */}
+          <div className="relative">
+            <Cat className="absolute -top-[3.1rem] right-8 z-10 hidden h-14 w-28 sm:block" />
+
+            <article className="relative h-full rotate-[0.6deg] rounded-md bg-[#fffdf6] p-6 shadow-[0_14px_30px_-14px_rgba(80,60,30,0.45)] ring-1 ring-[#e6d9bb]">
+              <span
+                className="absolute -top-3 left-1/2 h-6 w-24 -translate-x-1/2 -rotate-2 bg-[#d9c58a]/60"
+                aria-hidden="true"
+              />
+
+              <h2 className="mb-5 mt-1 text-sm text-[#6f6556]">Today&apos;s quest</h2>
+
+              <div className="flex items-center gap-5">
+                <QuestRing percent={questPercent} done={questDone} goal={QUEST_GOAL} />
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-lg leading-snug">{QUEST_LABEL}</p>
+                  {questComplete ? (
+                    <p className="mt-1 text-sm text-[#586a3a]">Quest complete. Nice reading today!</p>
+                  ) : (
+                    <p className="mt-1 text-sm text-[#6f6556]">
+                      {QUEST_GOAL - questDone} more {QUEST_GOAL - questDone === 1 ? 'page' : 'pages'} to go
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <PottedPlant className="absolute bottom-3 right-4 h-10 w-10 opacity-90" />
+            </article>
+          </div>
+        </div>
+
+        {/* ---------- Continue your journey, on a wooden shelf ---------- */}
+        <section className="mt-12 rounded-3xl bg-[#f3e8cc]/55 px-5 pb-8 pt-6 ring-1 ring-[#e6d9bb]/70 sm:px-8">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl font-normal">Continue your journey</h2>
+            <button
+              type="button"
+              onClick={() => navigate('/library')}
+              className={`flex items-center gap-1 rounded text-sm text-[#586a3a] hover:underline ${focusRing}`}
+            >
+              View all
+              <svg viewBox="0 0 24 24" className="h-4 w-4" {...iconProps} aria-hidden="true">
+                <path d="M4 12 h16 M14 6 l6 6 l-6 6" />
+              </svg>
+            </button>
+          </div>
+
+          {!loading && journey.length === 0 ? (
+            <p className="text-sm text-[#6f6556]">Books you are reading or want to read will show up here.</p>
+          ) : (
+            <div className="relative">
+              <Plant className="absolute -top-10 right-0 z-10 hidden h-20 w-20 lg:block" />
+
+              <ul className="grid grid-cols-2 items-end gap-x-0 gap-y-8 sm:grid-cols-3 lg:grid-cols-5">
+                {journey.map((book) => (
+                  <li key={book.id} className="flex flex-col">
+                    <div className="px-3">
+                      <button
+                        type="button"
+                        onClick={() => openBook(book)}
+                        aria-label={`Open ${book.title}`}
+                        className={`group block w-full rounded-sm ${focusRing}`}
+                      >
+                        <Cover
+                          book={book}
+                          large
+                          className="aspect-[2/3] w-full shadow-[3px_6px_14px_rgba(60,40,20,0.35)] transition-transform duration-300 group-hover:-translate-y-1.5"
+                        />
+                      </button>
+                    </div>
+
+                    {/* wooden plank under the books */}
+                    <div
+                      className="h-3 bg-gradient-to-b from-[#c79a6b] to-[#a37649] shadow-[0_3px_6px_rgba(60,40,20,0.25)]"
+                      aria-hidden="true"
+                    />
+
+                    <div className="px-3 pt-2.5">
+                      <p className="line-clamp-1 text-sm">{book.title}</p>
+                      <p className="text-xs text-[#8a7f66]">{book.status === 'reading' ? 'Reading' : 'Up next'}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      </div>
     </section>
   )
 }
