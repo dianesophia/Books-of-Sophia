@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 
@@ -143,6 +143,12 @@ function Home() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
+  const [userId, setUserId] = useState(null)
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const bellRef = useRef(null)
+
   /* ---------- Load profile and shelf ---------- */
 
   useEffect(() => {
@@ -156,7 +162,7 @@ function Home() {
         const user = auth?.user
         if (!user) return // signed out: show the page with no saved data
 
-        const [profileResult, shelfResult, logResult] = await Promise.all([
+        const [profileResult, shelfResult, logResult, notifyResult] = await Promise.all([
           supabase.from('profiles').select('name, avatar_url').eq('id', user.id).single(),
           supabase
             .from('shelf_books')
@@ -164,18 +170,39 @@ function Home() {
             .eq('user_id', user.id)
             .order('created_at', { ascending: false }),
           supabase.from('reading_log').select('pages').eq('user_id', user.id).eq('read_date', todayIso()),
+          supabase
+            .from('notifications')
+            .select('id, title, body, is_read, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(20),
         ])
 
         if (shelfResult.error) throw shelfResult.error
         if (cancelled) return
 
         // A missing profile row is not fatal; the page falls back to "Reader".
+        setUserId(user.id)
         setProfile(profileResult.data ?? null)
         setShelf(shelfResult.data.map(toBook))
 
         // A problem with the reading log only affects the quest, so it is not fatal.
         if (!logResult.error) {
           setPagesToday(logResult.data.reduce((sum, row) => sum + Number(row.pages ?? 0), 0))
+        }
+
+        // Same for notifications: the bell just stays empty if they fail to load.
+        if (!notifyResult.error) {
+          setNotifications(
+            notifyResult.data.map((row) => ({
+              id: row.id,
+              title: row.title,
+              body: row.body,
+              date: row.created_at,
+              isNew: !row.is_read,
+            }))
+          )
+          setUnreadCount(notifyResult.data.filter((row) => !row.is_read).length)
         }
       } catch (error) {
         console.error('Could not load home data:', error)
@@ -191,6 +218,53 @@ function Home() {
       cancelled = true
     }
   }, [])
+
+  // Close the notification panel when clicking elsewhere or pressing Esc
+  useEffect(() => {
+    if (!panelOpen) return
+
+    const onPointerDown = (event) => {
+      if (bellRef.current && !bellRef.current.contains(event.target)) setPanelOpen(false)
+    }
+    const onKey = (event) => {
+      if (event.key === 'Escape') setPanelOpen(false)
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKey)
+
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [panelOpen])
+
+  const togglePanel = async () => {
+    const opening = !panelOpen
+    setPanelOpen(opening)
+
+    // Opening the panel marks everything as read
+    if (opening && unreadCount > 0 && userId) {
+      setUnreadCount(0)
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', userId)
+        .eq('is_read', false)
+      if (error) console.error('Could not mark notifications as read:', error)
+    }
+  }
+
+  const clearNotifications = async () => {
+    if (!userId) return
+    const { error } = await supabase.from('notifications').delete().eq('user_id', userId)
+    if (error) {
+      console.error('Could not clear notifications:', error)
+      return
+    }
+    setNotifications([])
+    setUnreadCount(0)
+  }
 
   const name = profile?.name || 'Reader'
 
@@ -219,18 +293,75 @@ function Home() {
       {/* Top bar */}
       <div className="mb-2 flex items-center justify-end gap-4">
         <span className="text-xs text-[#6f6556]">{dateText}</span>
-        <button
-          type="button"
-          aria-label="Notifications"
-          onClick={() => {
-            // TODO: open your notifications
-          }}
-          className="rounded-full p-1.5 text-[#6f6556] hover:text-[#2f2a22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" {...iconProps} aria-hidden="true">
-            <path d="M6 16 v-5 a6 6 0 0 1 12 0 v5 l2 2 H4 z M10 20 a2 2 0 0 0 4 0" />
-          </svg>
-        </button>
+        <div ref={bellRef} className="relative">
+          <button
+            type="button"
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} new` : 'Notifications'}
+            aria-expanded={panelOpen}
+            aria-haspopup="true"
+            onClick={togglePanel}
+            className="relative rounded-full p-1.5 text-[#6f6556] hover:text-[#2f2a22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" {...iconProps} aria-hidden="true">
+              <path d="M6 16 v-5 a6 6 0 0 1 12 0 v5 l2 2 H4 z M10 20 a2 2 0 0 0 4 0" />
+            </svg>
+            {unreadCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#c96b4a] px-1 text-[10px] leading-none text-white"
+              >
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {panelOpen && (
+            <div
+              role="region"
+              aria-label="Notifications"
+              className="absolute right-0 top-full z-30 mt-2 w-80 max-w-[85vw] overflow-hidden rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] text-left shadow-[0_12px_30px_rgba(60,45,30,0.18)]"
+            >
+              <div className="flex items-center justify-between border-b border-[#e3d8bf] px-4 py-3">
+                <h2 className="text-sm font-semibold">Notifications</h2>
+                {notifications.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearNotifications}
+                    className="rounded text-xs text-[#6f6556] hover:text-[#2f2a22] hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {notifications.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-[#6f6556]">
+                  Nothing new yet. Badges you earn will show up here.
+                </p>
+              ) : (
+                <ul className="max-h-80 overflow-y-auto">
+                  {notifications.map((item) => (
+                    <li key={item.id} className="border-b border-[#e3d8bf] last:border-b-0">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/achievements')}
+                        className={`block w-full px-4 py-3 text-left transition-colors hover:bg-[#f3ecd8] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[#b9c79a] ${
+                          item.isNew ? 'bg-[#f6efd8]' : ''
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{item.title}</span>
+                        {item.body && <span className="block text-xs text-[#6f6556]">{item.body}</span>}
+                        <span className="mt-1 block text-[0.7rem] text-[#8a7f66]">
+                          {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
         <button
           type="button"
           aria-label="Open profile"

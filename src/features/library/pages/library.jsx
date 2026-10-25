@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Bookshelves from "../../../assets/background/bookshelves.jpg";
 import { supabase } from "@/lib/supabase";
-import BookDetails from "./BookDetails";
+import BookDetails from "@/assets/background/bookshelves.jpg";
 import { syncProgress } from "@/lib/progress";
 
 const GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes";

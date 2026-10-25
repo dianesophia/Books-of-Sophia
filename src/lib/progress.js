@@ -37,6 +37,17 @@ function levelFromXp(totalXp) {
   }
 }
 
+/* ---------- Badge text for notifications ---------- */
+
+const BADGE_INFO = {
+  'first-chapter': { name: 'First Chapter', desc: 'You read your first book.' },
+  'night-owl': { name: 'Night Owl', desc: 'You read after midnight.' },
+  'genre-explorer': { name: 'Genre Explorer', desc: 'You read 5 different genres.' },
+  bookworm: { name: 'Bookworm', desc: 'You read 10 books.' },
+  'streak-master': { name: 'Streak Master', desc: 'You kept a 7-day reading streak.' },
+  'quote-collector': { name: 'Quote Collector', desc: 'You saved 25 quotes.' },
+}
+
 /* ---------- Date helpers ---------- */
 
 function dateKey(date) {
@@ -166,7 +177,22 @@ export async function syncProgress(userId) {
       .from('user_badges')
       .insert(newlyEarned.map((badge_id) => ({ user_id: userId, badge_id })))
 
-    if (insertError) console.error('Could not save new badges:', insertError)
+    if (insertError) {
+      console.error('Could not save new badges:', insertError)
+    } else {
+      // One notification for every badge earned
+      const { error: notifyError } = await supabase.from('notifications').insert(
+        newlyEarned.map((badge_id) => ({
+          user_id: userId,
+          type: 'badge',
+          badge_id,
+          title: `Badge unlocked: ${BADGE_INFO[badge_id]?.name ?? badge_id}`,
+          body: BADGE_INFO[badge_id]?.desc ?? null,
+        }))
+      )
+
+      if (notifyError) console.error('Could not save notifications:', notifyError)
+    }
   }
 
   // Badges are never taken away once earned.
