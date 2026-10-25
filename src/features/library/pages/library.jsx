@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Bookshelves from "../../../assets/background/bookshelves.jpg";
+import { supabase } from "@/lib/supabase";
+import BookDetails from "@/components/layout/bookDetails";
 
 const GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes";
 const GUTENDEX_URL = "https://gutendex.com/books/";
@@ -49,6 +51,7 @@ async function fetchGoogleBooks(query) {
       readUrl: access.webReaderLink || info.previewLink || "",
       fullText: Boolean(fullText),
       categories: info.categories ?? [],
+      pageCount: info.pageCount || 0,
     };
   });
 }
@@ -118,9 +121,6 @@ const SANS =
 
 const FONTS = `@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap");`;
 
-// Your saved books are kept in this browser.
-const SHELF_KEY = "my-library-shelf";
-
 const STATUSES = [
   { id: "want", label: "Want to Read" },
   { id: "reading", label: "Currently Reading" },
@@ -128,15 +128,6 @@ const STATUSES = [
 ];
 
 const TABS = [{ id: "all", label: "All Books" }, ...STATUSES];
-
-function loadShelf() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SHELF_KEY) || "[]");
-    return Array.isArray(saved) ? saved : [];
-  } catch {
-    return [];
-  }
-}
 
 function scrollToRef(ref) {
   requestAnimationFrame(() => {
@@ -148,12 +139,17 @@ function scrollToRef(ref) {
   });
 }
 
-function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
+function BookCard({ book, shelfStatus, onSetStatus, onRemove, onRead, onOpen }) {
   return (
     <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl bg-[#fffaf0] shadow-[0_1px_2px_rgba(80,60,30,0.08),0_8px_24px_-12px_rgba(80,60,30,0.25)] ring-1 ring-[#e6d9bb]/70">
       {/* The cover stands on a small wooden ledge */}
       <div className="flex h-60 flex-col bg-gradient-to-b from-[#f3e8cc] to-[#ead9b4]">
-        <div className="flex min-h-0 flex-1 items-end justify-center px-6 pt-5">
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`View details for ${book.title}`}
+          className="flex min-h-0 flex-1 items-end justify-center px-6 pt-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#4f6a4c]/50"
+        >
           {book.cover ? (
             <img
               src={book.cover}
@@ -176,7 +172,7 @@ function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
               <span className="h-px w-8 bg-[#faf3e6]/50" aria-hidden="true" />
             </div>
           )}
-        </div>
+        </button>
         <div
           className="h-2 shrink-0 bg-gradient-to-b from-[#c79a6b] to-[#a37649]"
           aria-hidden="true"
@@ -192,7 +188,13 @@ function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
           className="mt-1 line-clamp-2 text-lg font-medium leading-snug text-[#2b3a30]"
           style={{ fontFamily: SERIF }}
         >
-          {book.title}
+          <button
+            type="button"
+            onClick={onOpen}
+            className="text-left hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/40"
+          >
+            {book.title}
+          </button>
         </h3>
 
         <p className="mt-1 line-clamp-1 text-sm text-[#7a705a]">
@@ -236,18 +238,17 @@ function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
           </div>
 
           {book.readUrl ? (
-            <a
-              href={book.readUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg bg-[#4f6a4c] px-3 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-[#3f5a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fffaf0]"
+            <button
+              type="button"
+              onClick={onRead}
+              className="block w-full rounded-lg bg-[#4f6a4c] px-3 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-[#3f5a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fffaf0]"
             >
               {book.provider === "Google Books"
                 ? book.fullText
                   ? "Read Book"
                   : "Read Preview"
                 : "Read Free Ebook"}
-            </a>
+            </button>
           ) : (
             <p className="rounded-lg bg-[#f1e8d0] px-3 py-2.5 text-center text-sm text-[#8a7f66]">
               No reading link available
@@ -256,6 +257,97 @@ function BookCard({ book, shelfStatus, onSetStatus, onRemove }) {
         </div>
       </div>
     </article>
+  );
+}
+
+// Where the book opens inside the page. Google Books has an embeddable viewer.
+function embedUrl(book) {
+  if (book.id.startsWith("google-")) {
+    const volumeId = book.id.replace("google-", "");
+    return `https://books.google.com/books?id=${volumeId}&pg=PP1&output=embed`;
+  }
+  return (book.readUrl || "").replace("http://", "https://");
+}
+
+function Reader({ book, onClose }) {
+  const closeButton = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === "Escape") onCloseRef.current();
+    };
+    const previousOverflow = document.body.style.overflow;
+
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    closeButton.current?.focus();
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  const src = embedUrl(book);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Reading ${book.title}`}
+      className="fixed inset-0 z-50 flex flex-col bg-[#faf3e6]"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-[#e3d8bf] bg-[#fffaf0] px-4 py-3 sm:px-6">
+        <div className="min-w-0">
+          <h2
+            className="truncate text-lg font-medium text-[#2b3a30]"
+            style={{ fontFamily: SERIF }}
+          >
+            {book.title}
+          </h2>
+          <p className="truncate text-sm text-[#7a705a]">
+            {book.authors.join(", ")}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {book.readUrl && (
+            <a
+              href={book.readUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden rounded-lg px-3 py-2 text-sm text-[#5f7a62] transition hover:bg-[#eef3e8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50 sm:block"
+            >
+              Not loading? Open in a new tab
+            </a>
+          )}
+          <button
+            ref={closeButton}
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-[#4f6a4c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3f5a3d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f6a4c]/50 focus-visible:ring-offset-2"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
+      {src ? (
+        <iframe
+          key={book.id}
+          src={src}
+          title={`Reader for ${book.title}`}
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+          className="min-h-0 w-full flex-1 border-0 bg-white"
+        />
+      ) : (
+        <p className="m-auto px-6 text-center text-[#7a705a]">
+          This book has no reading link.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -283,20 +375,98 @@ export default function Library() {
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
 
-  const [shelf, setShelf] = useState(loadShelf);
+  const [shelf, setShelf] = useState([]);
+  const [userId, setUserId] = useState(null);
+  const [shelfError, setShelfError] = useState("");
   const [tab, setTab] = useState("all");
+  const [readerBook, setReaderBook] = useState(null);
+  const [detailsBook, setDetailsBook] = useState(null);
 
   const searchInput = useRef(null);
   const resultsRef = useRef(null);
   const shelfRef = useRef(null);
 
+  // Load the saved shelf from the database when the page opens
   useEffect(() => {
-    try {
-      localStorage.setItem(SHELF_KEY, JSON.stringify(shelf));
-    } catch {
-      // storage is full or blocked, so the shelf just won't be remembered
-    }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { data: auth, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+
+        const user = auth?.user;
+
+        if (!user) {
+          if (!cancelled) {
+            setShelfError("Please sign in to save books to your shelf.");
+          }
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("shelf_books")
+          .select("book, status")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        setUserId(user.id);
+        setShelf(data.map((row) => ({ ...row.book, status: row.status })));
+      } catch {
+        if (!cancelled) {
+          setShelfError("Couldn't load your shelf. Please refresh.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Opens a book's details from the home page link (/library?book=BOOK_ID)
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("book");
+    if (!id) return;
+    const match = shelf.find((item) => item.id === id);
+    if (match) setDetailsBook(match);
   }, [shelf]);
+
+  function closeReader() {
+    setReaderBook(null);
+  }
+
+  function closeDetails() {
+    setDetailsBook(null);
+    if (window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }
+
+  // Saves extra details (pages read, notes, quotes, review) inside the book's saved data
+  async function saveBookExtras(id, patch) {
+    const item = shelf.find((book) => book.id === id);
+    if (!item || !userId) return;
+
+    setShelfError("");
+
+    const updated = { ...item, ...patch };
+    setShelf((current) => current.map((book) => (book.id === id ? updated : book)));
+
+    // eslint-disable-next-line no-unused-vars
+    const { status: _ignored, ...bookData } = updated;
+
+    const { error } = await supabase
+      .from("shelf_books")
+      .update({ book: bookData })
+      .eq("user_id", userId)
+      .eq("book_id", id);
+
+    if (error) setShelfError("Couldn't save that change. Please try again.");
+  }
 
   const statusById = useMemo(
     () => new Map(shelf.map((book) => [book.id, book.status])),
@@ -316,9 +486,12 @@ export default function Library() {
     return result;
   }, [shelf]);
 
-  function setBookStatus(book, status) {
-    if (!status) return;
+  async function setBookStatus(book, status) {
+    if (!status || !userId) return;
 
+    setShelfError("");
+
+    // update the screen right away, then save
     setShelf((current) => {
       if (current.some((item) => item.id === book.id)) {
         return current.map((item) =>
@@ -327,10 +500,34 @@ export default function Library() {
       }
       return [{ ...book, status }, ...current];
     });
+
+    // eslint-disable-next-line no-unused-vars
+    const { status: _ignored, ...bookData } = book;
+
+    const { error } = await supabase.from("shelf_books").upsert(
+      {
+        user_id: userId,
+        book_id: book.id,
+        title: book.title,
+        status,
+        book: bookData,
+      },
+      { onConflict: "user_id,book_id" }
+    );
+
+    if (error) setShelfError("Couldn't save that change. Please try again.");
   }
 
-  function removeBook(id) {
+  async function removeBook(id) {
+    setShelfError("");
     setShelf((current) => current.filter((item) => item.id !== id));
+
+    const { error } = await supabase
+      .from("shelf_books")
+      .delete()
+      .eq("book_id", id);
+
+    if (error) setShelfError("Couldn't remove that book. Please try again.");
   }
 
   function clearSearch() {
@@ -406,6 +603,11 @@ export default function Library() {
   const activeTabLabel = TABS.find((item) => item.id === tab)?.label;
   const showShelfSection = shelf.length > 0 || tab !== "all";
 
+  // Show the saved version of the book if it is on the shelf
+  const detailsView = detailsBook
+    ? shelf.find((item) => item.id === detailsBook.id) ?? detailsBook
+    : null;
+
   return (
     <main
       className="min-h-screen text-[#2b3a30]"
@@ -416,6 +618,27 @@ export default function Library() {
       }}
     >
       <style>{FONTS}</style>
+
+      {detailsView && (
+        <BookDetails
+          book={detailsView}
+          shelfStatus={statusById.get(detailsView.id)}
+          suspended={Boolean(readerBook)}
+          onClose={closeDetails}
+          onRead={() => {
+            const current = statusById.get(detailsView.id);
+            if (current !== "reading" && current !== "finished") {
+              setBookStatus(detailsView, "reading");
+            }
+            setReaderBook(detailsView);
+          }}
+          onSetStatus={(status) => setBookStatus(detailsView, status)}
+          onRemove={() => removeBook(detailsView.id)}
+          onSaveExtras={(patch) => saveBookExtras(detailsView.id, patch)}
+        />
+      )}
+
+      {readerBook && <Reader book={readerBook} onClose={closeReader} />}
 
       <div className="w-full px-4 pb-14 pt-8 sm:px-8 sm:pt-12 lg:px-12">
         {/* Title and buttons */}
@@ -505,6 +728,16 @@ export default function Library() {
           </button>
         </form>
 
+        {/* Shelf error */}
+        {shelfError && (
+          <div
+            role="status"
+            className="mb-6 rounded-2xl border border-[#e3c98f] bg-[#fbf1d6] p-4 text-[#6b5320]"
+          >
+            {shelfError}
+          </div>
+        )}
+
         {/* Tabs */}
         <nav
           aria-label="Shelf filter"
@@ -588,6 +821,8 @@ export default function Library() {
                     shelfStatus={statusById.get(book.id)}
                     onSetStatus={(status) => setBookStatus(book, status)}
                     onRemove={() => removeBook(book.id)}
+                    onRead={() => setReaderBook(book)}
+                    onOpen={() => setDetailsBook(book)}
                   />
                 ))}
               </div>
@@ -636,6 +871,8 @@ export default function Library() {
                       shelfStatus={book.status}
                       onSetStatus={(status) => setBookStatus(book, status)}
                       onRemove={() => removeBook(book.id)}
+                      onRead={() => setReaderBook(book)}
+                      onOpen={() => setDetailsBook(book)}
                     />
                   ))}
                 </div>

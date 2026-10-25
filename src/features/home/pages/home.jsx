@@ -1,20 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 
-/* ---------- Your data (replace with real values from your app) ---------- */
+/* ---------- Placeholder (not in the database yet) ---------- */
 
-const USER = { name: 'Sophia', avatar: null } // set avatar to an imported image to show a photo
-
-// Add `image` (an imported cover) to any book to use real artwork instead of the drawn cover.
-const BOOKS = [
-  { id: 'midnight-library', title: 'The Midnight Library', author: 'Matt Haig', bg: '#1f2a44', fg: '#f3d27a', pages: 304 },
-  { id: 'atomic-habits', title: 'Atomic Habits', author: 'James Clear', bg: '#f6efdc', fg: '#c96a2b', pages: 320 },
-  { id: 'dune', title: 'Dune', author: 'Frank Herbert', bg: 'linear-gradient(#3a2418, #b5622a 70%, #e8a24a)', fg: '#f3d9a8', pages: 612 },
-  { id: 'project-hail-mary', title: 'Project Hail Mary', author: 'Andy Weir', bg: '#16181c', fg: '#e8d9a8', pages: 476 },
-  { id: 'evelyn-hugo', title: 'The Seven Husbands of Evelyn Hugo', author: 'Taylor Jenkins Reid', bg: '#3f5a45', fg: '#e8d9a8', pages: 400 },
-]
-
-const CURRENT = { bookId: 'midnight-library', pagesRead: 120 }
 const QUEST = { label: 'Read 10 pages', done: 0, goal: 10 }
 
 /* ---------- Helpers ---------- */
@@ -25,23 +14,39 @@ function greeting(hour) {
   return 'Good evening'
 }
 
-const bookById = (id) => BOOKS.find((b) => b.id === id)
+// Shelf rows are saved as { book, status, title }. Flatten them for the page.
+function toBook(row) {
+  const book = row.book ?? {}
+  return {
+    ...book,
+    id: book.id ?? row.book_id,
+    title: row.title || book.title || 'Untitled',
+    authors: book.authors ?? [],
+    status: row.status,
+  }
+}
 
 /* ---------- Pieces ---------- */
 
 function Cover({ book, className = '', large = false }) {
-  if (book.image) {
-    return <img src={book.image} alt={book.title} className={`rounded-sm object-cover shadow-md ${className}`} />
+  if (book.cover) {
+    return (
+      <img
+        src={book.cover}
+        alt={`Cover of ${book.title}`}
+        loading="lazy"
+        className={`rounded-sm object-cover shadow-md ${className}`}
+      />
+    )
   }
   return (
     <div
-      className={`flex items-center justify-center rounded-sm p-2 text-center font-semibold leading-tight shadow-md ${
+      className={`flex items-center justify-center rounded-sm bg-[#4f6a4c] p-2 text-center font-semibold leading-tight text-[#faf3e6] shadow-md ${
         large ? 'text-base' : 'text-[0.6rem]'
       } ${className}`}
-      style={{ background: book.bg, color: book.fg }}
       aria-label={`Cover of ${book.title}`}
     >
-      {book.title}
+      <span className="line-clamp-4">{book.title}</span>
     </div>
   )
 }
@@ -124,8 +129,70 @@ function Home() {
   const navigate = useNavigate()
   const [now] = useState(() => new Date())
 
-  const current = bookById(CURRENT.bookId)
-  const percent = Math.round((CURRENT.pagesRead / current.pages) * 100)
+  const [profile, setProfile] = useState(null)
+  const [shelf, setShelf] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  /* ---------- Load profile and shelf ---------- */
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      try {
+        const { data: auth, error: authError } = await supabase.auth.getUser()
+        if (authError) throw authError
+
+        const user = auth?.user
+        if (!user) return // signed out: show the page with no saved data
+
+        const [profileResult, shelfResult] = await Promise.all([
+          supabase.from('profiles').select('name, avatar_url').eq('id', user.id).single(),
+          supabase
+            .from('shelf_books')
+            .select('book_id, title, book, status')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+        ])
+
+        if (shelfResult.error) throw shelfResult.error
+        if (cancelled) return
+
+        // A missing profile row is not fatal; the page falls back to "Reader".
+        setProfile(profileResult.data ?? null)
+        setShelf(shelfResult.data.map(toBook))
+      } catch (error) {
+        console.error('Could not load home data:', error)
+        if (!cancelled) setLoadError("We couldn't load your books. Please refresh.")
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const name = profile?.name || 'Reader'
+
+  // Show the book being read first, then the ones waiting to be read.
+  const reading = shelf.filter((book) => book.status === 'reading')
+  const wantToRead = shelf.filter((book) => book.status === 'want')
+  const current = reading[0] ?? null
+  const journey = [...reading, ...wantToRead].slice(0, 5)
+
+  // Page progress is only shown if the book has both numbers saved.
+  const totalPages = Number(current?.pageCount ?? 0)
+  const pagesRead = Number(current?.pagesRead ?? 0)
+  const percent = totalPages > 0 ? Math.min(100, Math.round((pagesRead / totalPages) * 100)) : null
+
+  // Opens the book's details on the Library page
+  const openBook = (book) => navigate(`/library?book=${encodeURIComponent(book.id)}`)
+
   const questPercent = Math.min(100, Math.round((QUEST.done / QUEST.goal) * 100))
 
   const dateText = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
@@ -153,49 +220,91 @@ function Home() {
           onClick={() => navigate('/profile')}
           className="rounded-full focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
         >
-          <Avatar name={USER.name} src={USER.avatar} />
+          <Avatar name={name} src={profile?.avatar_url} />
         </button>
       </div>
 
       {/* Greeting */}
       <div className="mb-8">
         <h1 className="mb-2 text-4xl font-normal">
-          {greeting(now.getHours())}, {USER.name}!
+          {greeting(now.getHours())}, {name}!
         </h1>
         <p className="text-base text-[#6f6556]">Another day, another chapter.</p>
       </div>
+
+      {loadError && (
+        <p role="alert" className="mb-6 rounded-xl border border-[#e3c98f] bg-[#fbf1d6] p-4 text-sm text-[#6b5320]">
+          {loadError}
+        </p>
+      )}
 
       {/* Currently reading + quest */}
       <div className="mb-6 grid gap-6 lg:grid-cols-[1fr_minmax(260px,340px)]">
         <article className="rounded-2xl border border-[#e3d8bf] bg-[#fdf9ef] p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold">Currently Reading</h2>
-            <button
-              type="button"
-              aria-label={`Open ${current.title}`}
-              onClick={() => navigate(`/library/${current.id}`)}
-              className="rounded p-1 text-[#6f6556] hover:text-[#2f2a22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" {...iconProps} aria-hidden="true">
-                <path d="M7 17 L17 7 M9 7 h8 v8" />
-              </svg>
-            </button>
+            {current && (
+              <button
+                type="button"
+                aria-label={`Read ${current.title}`}
+                onClick={() => openBook(current)}
+                className="rounded p-1 text-[#6f6556] hover:text-[#2f2a22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" {...iconProps} aria-hidden="true">
+                  <path d="M7 17 L17 7 M9 7 h8 v8" />
+                </svg>
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-5">
-            <Cover book={current} className="h-28 w-[4.5rem] shrink-0" />
-            <div className="min-w-0 flex-1">
-              <h3 className="text-lg font-semibold">{current.title}</h3>
-              <p className="mb-4 text-sm text-[#6f6556]">{current.author}</p>
-              <p className="mb-1.5 text-xs text-[#6f6556]">Read {CURRENT.pagesRead} / {current.pages} pages</p>
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <ProgressBar percent={percent} label={`${current.title} reading progress`} />
-                </div>
-                <span className="text-xs text-[#6f6556]">{percent}%</span>
+          {loading ? (
+            <p className="py-6 text-sm text-[#6f6556]">Loading your books...</p>
+          ) : current ? (
+            <div className="flex items-center gap-5">
+              <Cover book={current} className="h-28 w-[4.5rem] shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-semibold">{current.title}</h3>
+                <p className="mb-4 text-sm text-[#6f6556]">{current.authors.join(', ')}</p>
+
+                {percent !== null ? (
+                  <>
+                    <p className="mb-1.5 text-xs text-[#6f6556]">
+                      Read {pagesRead} / {totalPages} pages
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <ProgressBar percent={percent} label={`${current.title} reading progress`} />
+                      </div>
+                      <span className="text-xs text-[#6f6556]">{percent}%</span>
+                    </div>
+                  </>
+                ) : (
+                  (
+                    <button
+                      type="button"
+                      onClick={() => openBook(current)}
+                      className="inline-block rounded-lg bg-[#6b7d48] px-4 py-2 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+                    >
+                      Keep reading
+                    </button>
+                  )
+                )}
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="py-4">
+              <p className="mb-3 text-sm text-[#6f6556]">
+                You aren&apos;t reading anything yet. Pick a book and set it to Currently Reading.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/library')}
+                className="rounded-lg bg-[#6b7d48] px-4 py-2 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+              >
+                Find a book
+              </button>
+            </div>
+          )}
         </article>
 
         <div className="relative">
@@ -236,20 +345,26 @@ function Home() {
           </button>
         </div>
 
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          {BOOKS.map((book) => (
-            <li key={book.id}>
-              <button
-                type="button"
-                onClick={() => navigate(`/library/${book.id}`)}
-                aria-label={`Open ${book.title}`}
-                className="block w-full rounded-xl border border-[#e3d8bf] bg-[#fbf6ea] p-3 transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-              >
-                <Cover book={book} large className="aspect-[3/4] w-full" />
-              </button>
-            </li>
-          ))}
-        </ul>
+        {!loading && journey.length === 0 ? (
+          <p className="text-sm text-[#6f6556]">
+            Books you are reading or want to read will show up here.
+          </p>
+        ) : (
+          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {journey.map((book) => (
+              <li key={book.id}>
+                <button
+                  type="button"
+                  onClick={() => openBook(book)}
+                  aria-label={`Read ${book.title}`}
+                  className="block w-full rounded-xl border border-[#e3d8bf] bg-[#fbf6ea] p-3 transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+                >
+                  <Cover book={book} large className="aspect-[3/4] w-full" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </article>
     </section>
   )

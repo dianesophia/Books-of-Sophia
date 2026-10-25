@@ -1,37 +1,8 @@
 import React, { useEffect, useState } from 'react'
-
-/* ---------- Books you can write about ---------- */
-// Add `image` (an imported cover) to a book to use real artwork instead of the drawn cover.
-
-const BOOKS = [
-  { id: 'midnight-library', title: 'The Midnight Library', bg: '#1f2a44', fg: '#f3d27a' },
-  { id: 'atomic-habits', title: 'Atomic Habits', bg: '#f6efdc', fg: '#c96a2b' },
-  { id: 'dune', title: 'Dune', bg: 'linear-gradient(#3a2418, #b5622a 70%, #e8a24a)', fg: '#f3d9a8' },
-  { id: 'pride', title: 'Pride and Prejudice', bg: '#6b7d48', fg: '#fbf6ea' },
-  { id: 'hobbit', title: 'The Hobbit', bg: '#4f6b6b', fg: '#fbf6ea' },
-  { id: 'little-women', title: 'Little Women', bg: '#b5766f', fg: '#fbf6ea' },
-  { id: 'jane-eyre', title: 'Jane Eyre', bg: '#5e4632', fg: '#f3d9a8' },
-]
-
-const SAMPLE_ENTRIES = [
-  { id: 'e1', bookId: 'midnight-library', date: '2025-10-05', text: 'Sometimes the best way to find yourself is to lose yourself in a book.', rating: 5 },
-  { id: 'e2', bookId: 'atomic-habits', date: '2025-09-28', text: 'Small changes, remarkable results.', rating: 4.5 },
-  { id: 'e3', bookId: 'dune', date: '2025-09-15', text: 'Fear is the mind-killer.', rating: 4.5 },
-]
-
-const STORAGE_KEY = 'readingJournalEntries'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 
 /* ---------- Helpers ---------- */
-
-function loadEntries() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (Array.isArray(saved)) return saved
-  } catch {
-    // Storage can be unavailable; fall back to the sample entries
-  }
-  return SAMPLE_ENTRIES
-}
 
 function formatDate(iso) {
   const [y, m, d] = iso.split('-').map(Number)
@@ -42,6 +13,19 @@ function todayIso() {
   const now = new Date()
   const pad = (n) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+// Turn a database row into the shape the page uses
+function toEntry(row) {
+  return {
+    id: row.id,
+    bookId: row.book_id,
+    title: row.book_title,
+    cover: row.book_cover || '',
+    date: row.entry_date,
+    text: row.entry_text,
+    rating: Number(row.rating ?? 0),
+  }
 }
 
 const clampStyle = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
@@ -109,28 +93,34 @@ function RatingInput({ value, onChange }) {
   )
 }
 
-function Cover({ book }) {
-  if (book.image) {
-    return <img src={book.image} alt={book.title} className="h-[72px] w-12 shrink-0 rounded-sm object-cover shadow-md" />
+function Cover({ title, cover }) {
+  if (cover) {
+    return (
+      <img
+        src={cover}
+        alt={`Cover of ${title}`}
+        loading="lazy"
+        className="h-[72px] w-12 shrink-0 rounded-sm object-cover shadow-md"
+      />
+    )
   }
   return (
     <div
-      className="flex h-[72px] w-12 shrink-0 items-center justify-center rounded-sm p-1 text-center text-[0.5rem] font-semibold leading-tight shadow-md"
-      style={{ background: book.bg, color: book.fg }}
-      aria-label={`Cover of ${book.title}`}
+      className="flex h-[72px] w-12 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#4f6a4c] p-1 text-center text-[0.5rem] font-semibold leading-tight text-[#faf3e6] shadow-md"
+      aria-label={`Cover of ${title}`}
     >
-      {book.title}
+      {title}
     </div>
   )
 }
 
-function EntryCard({ entry, book, open, onToggle, onDelete }) {
+function EntryCard({ entry, open, onToggle, onDelete, deleting }) {
   return (
     <article className="rounded-xl border border-[#e3d8bf] bg-[#fbf6ea] px-4 py-3.5 shadow-sm">
       <div className="flex items-center gap-4">
-        <Cover book={book} />
+        <Cover title={entry.title} cover={entry.cover} />
         <div className="min-w-0 flex-1">
-          <h2 className="text-[0.95rem] font-semibold">{book.title}</h2>
+          <h2 className="text-[0.95rem] font-semibold">{entry.title}</h2>
           <p className="mb-1.5 text-xs text-[#6f6556]">{formatDate(entry.date)}</p>
           <p className="mb-1.5 text-[0.8rem] italic" style={open ? undefined : clampStyle}>
             “{entry.text}”
@@ -164,9 +154,10 @@ function EntryCard({ entry, book, open, onToggle, onDelete }) {
           <button
             type="button"
             onClick={onDelete}
-            className="text-xs text-[#9a5a50] underline hover:text-[#7a3f36]"
+            disabled={deleting}
+            className="text-xs text-[#9a5a50] underline hover:text-[#7a3f36] disabled:opacity-60"
           >
-            Delete entry
+            {deleting ? 'Deleting...' : 'Delete entry'}
           </button>
         </div>
       )}
@@ -209,25 +200,82 @@ function Paperclip({ className = '' }) {
 /* ---------- Page ---------- */
 
 function Journal() {
-  const [entries, setEntries] = useState(loadEntries)
+  const navigate = useNavigate()
+
+  const [status, setStatus] = useState('loading') // loading | ready | signedout | error
+  const [userId, setUserId] = useState(null)
+  const [entries, setEntries] = useState([])
+  const [shelfBooks, setShelfBooks] = useState([])
   const [openId, setOpenId] = useState(null)
 
   const [bookId, setBookId] = useState('')
   const [text, setText] = useState('')
   const [rating, setRating] = useState(0)
   const [errors, setErrors] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
+  const [actionError, setActionError] = useState('')
+
+  /* ---------- Load entries and the books on your shelf ---------- */
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
-    } catch {
-      // Ignore storage problems; the journal still works for this visit
+    let cancelled = false
+
+    async function load() {
+      try {
+        const { data: auth, error: authError } = await supabase.auth.getUser()
+        if (authError) throw authError
+
+        const user = auth?.user
+        if (!user) {
+          if (!cancelled) setStatus('signedout')
+          return
+        }
+
+        const [entriesResult, shelfResult] = await Promise.all([
+          supabase
+            .from('journal_entries')
+            .select('id, book_id, book_title, book_cover, entry_text, rating, entry_date')
+            .eq('user_id', user.id)
+            .order('entry_date', { ascending: false })
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('shelf_books')
+            .select('book_id, title, book')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+        ])
+
+        if (entriesResult.error) throw entriesResult.error
+        if (shelfResult.error) throw shelfResult.error
+        if (cancelled) return
+
+        setUserId(user.id)
+        setEntries(entriesResult.data.map(toEntry))
+        setShelfBooks(
+          shelfResult.data.map((row) => ({
+            id: row.book_id,
+            title: row.title || row.book?.title || 'Untitled',
+            cover: row.book?.cover || '',
+          }))
+        )
+        setStatus('ready')
+      } catch (error) {
+        console.error('Could not load journal:', error)
+        if (!cancelled) setStatus('error')
+      }
     }
-  }, [entries])
 
-  const bookById = (id) => BOOKS.find((b) => b.id === id) || { title: 'Unknown book', bg: '#8a7a64', fg: '#fbf6ea' }
+    load()
 
-  const handleSave = (e) => {
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /* ---------- Save a new entry ---------- */
+
+  const handleSave = async (e) => {
     e.preventDefault()
     const cleanText = text.trim()
     const nextErrors = {}
@@ -236,15 +284,101 @@ function Journal() {
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 
-    // TODO: send the new entry to your API here
-    const entry = { id: `e${Date.now()}`, bookId, date: todayIso(), text: cleanText, rating }
-    setEntries((list) => [entry, ...list])
+    const book = shelfBooks.find((b) => b.id === bookId)
+    if (!book || !userId) return
+
+    setSaving(true)
+    setActionError('')
+
+    // The title and cover are saved with the entry, so it still looks right
+    // if the book is later removed from your shelf.
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .insert({
+        user_id: userId,
+        book_id: book.id,
+        book_title: book.title,
+        book_cover: book.cover || null,
+        entry_text: cleanText,
+        rating,
+        entry_date: todayIso(),
+      })
+      .select('id, book_id, book_title, book_cover, entry_text, rating, entry_date')
+      .single()
+
+    setSaving(false)
+
+    if (error) {
+      console.error('Could not save entry:', error)
+      setActionError("Couldn't save your entry. Please try again.")
+      return
+    }
+
+    setEntries((list) => [toEntry(data), ...list])
     setBookId('')
     setText('')
     setRating(0)
   }
 
-  const sorted = [...entries].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+  /* ---------- Delete an entry ---------- */
+
+  const handleDelete = async (id) => {
+    setDeletingId(id)
+    setActionError('')
+
+    const { error } = await supabase.from('journal_entries').delete().eq('id', id)
+
+    setDeletingId(null)
+
+    if (error) {
+      console.error('Could not delete entry:', error)
+      setActionError("Couldn't delete that entry. Please try again.")
+      return
+    }
+
+    setEntries((list) => list.filter((x) => x.id !== id))
+    setOpenId(null)
+  }
+
+  /* ---------- Loading, signed-out and error states ---------- */
+
+  if (status === 'loading') {
+    return (
+      <section className="flex min-h-screen w-full items-center justify-center bg-[#faf3e6] font-serif text-[#6f6556]">
+        Loading your journal...
+      </section>
+    )
+  }
+
+  if (status === 'signedout') {
+    return (
+      <section className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-[#faf3e6] px-6 text-center font-serif text-[#2f2a22]">
+        <p>Please sign in to see your journal.</p>
+        <button
+          type="button"
+          onClick={() => navigate('/login')}
+          className="rounded-lg bg-[#6b7d48] px-5 py-2.5 text-sm text-white hover:bg-[#586a3a]"
+        >
+          Sign in
+        </button>
+      </section>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <section className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-[#faf3e6] px-6 text-center font-serif text-[#9a5a50]">
+        <p>We couldn&apos;t load your journal. Please try again.</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="rounded-lg bg-[#6b7d48] px-5 py-2.5 text-sm text-white"
+        >
+          Retry
+        </button>
+      </section>
+    )
+  }
 
   const field =
     'w-full rounded-lg border border-[#d9ccaa] bg-[#fdf9ef] px-3 py-2 text-sm outline-none focus:border-[#6b7d48] focus:ring-4 focus:ring-[#b9c79a]/60'
@@ -259,23 +393,26 @@ function Journal() {
             <p className="text-base">Thoughts, quotes, and moments that stay with me.</p>
           </div>
 
-          {sorted.length === 0 ? (
+          {actionError && (
+            <p role="alert" className="mb-4 rounded-xl border border-[#e3c98f] bg-[#fbf1d6] p-3 text-sm text-[#6b5320]">
+              {actionError}
+            </p>
+          )}
+
+          {entries.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[#e3d8bf] p-8 text-center text-[#6f6556]">
               No entries yet. Write your first one!
             </p>
           ) : (
             <div className="flex flex-col gap-4">
-              {sorted.map((entry) => (
+              {entries.map((entry) => (
                 <EntryCard
                   key={entry.id}
                   entry={entry}
-                  book={bookById(entry.bookId)}
                   open={openId === entry.id}
+                  deleting={deletingId === entry.id}
                   onToggle={() => setOpenId(openId === entry.id ? null : entry.id)}
-                  onDelete={() => {
-                    setEntries((list) => list.filter((x) => x.id !== entry.id))
-                    setOpenId(null)
-                  }}
+                  onDelete={() => handleDelete(entry.id)}
                 />
               ))}
             </div>
@@ -292,43 +429,59 @@ function Journal() {
           <form onSubmit={handleSave} noValidate className="relative flex w-full flex-col rounded-lg border border-[#d9ccaa] bg-[#fdf9ef] p-6 pb-24 shadow-sm">
             <h2 className="mb-5 mt-1 text-sm font-semibold">Write a new entry</h2>
 
-            <label htmlFor="journal-book" className="mb-1.5 block text-[0.8rem] text-[#6f6556]">Book</label>
-            <select
-              id="journal-book"
-              value={bookId}
-              onChange={(e) => setBookId(e.target.value)}
-              className={`${field} mb-1`}
-              aria-invalid={Boolean(errors.book)}
-            >
-              <option value="" disabled>Select a book</option>
-              {BOOKS.map((b) => (
-                <option key={b.id} value={b.id}>{b.title}</option>
-              ))}
-            </select>
-            {errors.book && <p className="mb-2 text-xs text-[#9a5a50]">{errors.book}</p>}
+            {shelfBooks.length === 0 ? (
+              <div className="rounded-lg bg-[#f3ecd8] p-4 text-sm text-[#6b6450]">
+                <p className="mb-3">Add a book to your shelf first, then you can write about it here.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/library')}
+                  className="rounded-lg bg-[#6b7d48] px-4 py-2 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
+                >
+                  Go to My Library
+                </button>
+              </div>
+            ) : (
+              <>
+                <label htmlFor="journal-book" className="mb-1.5 block text-[0.8rem] text-[#6f6556]">Book</label>
+                <select
+                  id="journal-book"
+                  value={bookId}
+                  onChange={(e) => setBookId(e.target.value)}
+                  className={`${field} mb-1`}
+                  aria-invalid={Boolean(errors.book)}
+                >
+                  <option value="" disabled>Select a book</option>
+                  {shelfBooks.map((b) => (
+                    <option key={b.id} value={b.id}>{b.title}</option>
+                  ))}
+                </select>
+                {errors.book && <p className="mb-2 text-xs text-[#9a5a50]">{errors.book}</p>}
 
-            <label htmlFor="journal-text" className="mb-1.5 mt-4 block text-[0.8rem] text-[#6f6556]">Your thoughts...</label>
-            <textarea
-              id="journal-text"
-              rows={5}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              className={`${field} mb-1 resize-y`}
-              aria-invalid={Boolean(errors.text)}
-            />
-            {errors.text && <p className="mb-2 text-xs text-[#9a5a50]">{errors.text}</p>}
+                <label htmlFor="journal-text" className="mb-1.5 mt-4 block text-[0.8rem] text-[#6f6556]">Your thoughts...</label>
+                <textarea
+                  id="journal-text"
+                  rows={5}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  className={`${field} mb-1 resize-y`}
+                  aria-invalid={Boolean(errors.text)}
+                />
+                {errors.text && <p className="mb-2 text-xs text-[#9a5a50]">{errors.text}</p>}
 
-            <div className="mb-1.5 mt-4 text-[0.8rem] text-[#6f6556]">Rating</div>
-            <div className="mb-6">
-              <RatingInput value={rating} onChange={setRating} />
-            </div>
+                <div className="mb-1.5 mt-4 text-[0.8rem] text-[#6f6556]">Rating</div>
+                <div className="mb-6">
+                  <RatingInput value={rating} onChange={setRating} />
+                </div>
 
-            <button
-              type="submit"
-              className="w-fit rounded-lg bg-[#6b7d48] px-12 py-2.5 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a]"
-            >
-              Save Entry
-            </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="w-fit rounded-lg bg-[#6b7d48] px-12 py-2.5 text-sm text-white transition-colors hover:bg-[#586a3a] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b9c79a] disabled:opacity-60"
+                >
+                  {saving ? 'Saving...' : 'Save Entry'}
+                </button>
+              </>
+            )}
 
             <Sprig className="absolute -bottom-3 right-2 hidden h-24 w-16 sm:block" />
           </form>
