@@ -72,8 +72,11 @@ export default function BookDetails({
   const closeButton = useRef(null);
   const onCloseRef = useRef(onClose);
   const suspendedRef = useRef(suspended);
-  onCloseRef.current = onClose;
-  suspendedRef.current = suspended;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    suspendedRef.current = suspended;
+  }, [onClose, suspended]);
 
   const onShelf = Boolean(shelfStatus);
   const pageCount = Number(book.pageCount ?? 0);
@@ -87,20 +90,6 @@ export default function BookDetails({
   const [quoteDraft, setQuoteDraft] = useState("");
   const [rating, setRating] = useState(book.review?.rating ?? 0);
   const [reviewText, setReviewText] = useState(book.review?.text ?? "");
-
-  // Reset the fields when a different book is shown
-  useEffect(() => {
-    setTab("details");
-    setNotesDraft(book.notes ?? "");
-    setQuoteDraft("");
-    setRating(book.review?.rating ?? 0);
-    setReviewText(book.review?.text ?? "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book.id]);
-
-  useEffect(() => {
-    setPagesDraft(String(pagesRead));
-  }, [book.id, pagesRead]);
 
   useEffect(() => {
     const onKey = (event) => {

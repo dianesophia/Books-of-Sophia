@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { syncProgress } from '@/lib/progress'
 import Desk from '@/assets/background/cozy_desk.jpg'
 
 const AVATAR_BUCKET = 'avatars'
@@ -186,6 +187,14 @@ function Profile() {
         if (!user) {
           if (!cancelled) setStatus('signedout')
           return
+        }
+
+        // Refresh books read, streak, XP, level and badges before showing them.
+        // If this fails, the page still shows the last saved numbers.
+        try {
+          await syncProgress(user.id)
+        } catch (syncError) {
+          console.error('Could not refresh progress:', syncError)
         }
 
         const { data, error } = await supabase

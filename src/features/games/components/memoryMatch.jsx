@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getWinningResults, saveGameResult } from '@/lib/gameResults'
 
@@ -146,11 +146,7 @@ function MemoryMatch() {
   useEffect(() => {
     if (flipped.length !== 2) return
     const [a, b] = flipped
-    if (cards[a].pairId === cards[b].pairId) {
-      setMatched((m) => [...m, cards[a].pairId])
-      setFlipped([])
-      return
-    }
+    if (cards[a].pairId === cards[b].pairId) return
     const t = setTimeout(() => setFlipped([]), MISMATCH_DELAY)
     return () => clearTimeout(t)
   }, [flipped, cards])
@@ -166,14 +162,6 @@ function MemoryMatch() {
     })
   }, [])
 
-  // When the board is cleared: update the best score and save the result
-  useEffect(() => {
-    if (!won) return
-    setBest((prev) => (prev[level] !== undefined && prev[level] <= moves ? prev : { ...prev, [level]: moves }))
-    saveGameResult({ game: 'memory_match', level, won: true, seconds, moves }).then(setReward)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [won])
-
   const startLevel = (lv) => {
     setLevel(lv)
     setReward(null)
@@ -187,9 +175,36 @@ function MemoryMatch() {
 
   const handleFlip = (i) => {
     if (flipped.length >= 2 || flipped.includes(i) || matched.includes(cards[i].pairId)) return
+
     if (!started) setStarted(true)
+
+    const nextFlipped = [...flipped, i]
+    if (nextFlipped.length === 2) {
+      const [a, b] = nextFlipped
+      const nextMoves = flipped.length === 1 ? moves + 1 : moves
+
+      if (cards[a].pairId === cards[b].pairId) {
+        const nextMatched = [...matched, cards[a].pairId]
+        setMatched(nextMatched)
+        setFlipped([])
+
+        if (nextMatched.length === config.pairs) {
+          setBest((prev) => {
+            const currentBest = prev[level]
+            return currentBest !== undefined && currentBest <= nextMoves ? prev : { ...prev, [level]: nextMoves }
+          })
+          saveGameResult({ game: 'memory_match', level, won: true, seconds: seconds + 1, moves: nextMoves }).then(setReward)
+        }
+        return
+      }
+
+      setMoves(nextMoves)
+      setFlipped(nextFlipped)
+      return
+    }
+
     if (flipped.length === 1) setMoves((m) => m + 1)
-    setFlipped((f) => [...f, i])
+    setFlipped(nextFlipped)
   }
 
   const bestForLevel = best[level]

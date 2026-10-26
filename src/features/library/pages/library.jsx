@@ -280,7 +280,10 @@ function embedUrl(book) {
 function Reader({ book, onClose }) {
   const closeButton = useRef(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const onKey = (event) => {
@@ -421,8 +424,13 @@ export default function Library() {
         if (error) throw error;
         if (cancelled) return;
 
+        const nextShelf = data.map((row) => ({ ...row.book, status: row.status }));
+        const queryId = new URLSearchParams(window.location.search).get("book");
+        const matched = queryId ? nextShelf.find((item) => item.id === queryId) ?? null : null;
+
         setUserId(user.id);
-        setShelf(data.map((row) => ({ ...row.book, status: row.status })));
+        setShelf(nextShelf);
+        if (matched) setDetailsBook(matched);
       } catch {
         if (!cancelled) {
           setShelfError("Couldn't load your shelf. Please refresh.");
@@ -434,14 +442,6 @@ export default function Library() {
       cancelled = true;
     };
   }, []);
-
-  // Opens a book's details from the home page link (/library?book=BOOK_ID)
-  useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("book");
-    if (!id) return;
-    const match = shelf.find((item) => item.id === id);
-    if (match) setDetailsBook(match);
-  }, [shelf]);
 
   function closeReader() {
     setReaderBook(null);
@@ -658,6 +658,7 @@ export default function Library() {
 
       {detailsView && (
         <BookDetails
+          key={detailsView.id}
           book={detailsView}
           shelfStatus={statusById.get(detailsView.id)}
           suspended={Boolean(readerBook)}
